@@ -13,7 +13,9 @@ export default function Home() {
     title: "WRITTEN WORK # 1",
     teacher: "",
     school: "",
-    instructions: "General Directions: Read the specific directions for each part carefully. Strictly no erasures allowed."
+    schoolYear: "S.Y. 2026-2027",
+    term: "FIRST TERM",
+    instructions: "Read the specific directions for each part carefully. Strictly no erasures allowed."
   });
 
   // AI Generation Form State
@@ -352,6 +354,17 @@ export default function Home() {
           <input type="text" className="neu-input" placeholder="Enter school name" value={quizData.school} onChange={(e) => setQuizData({ ...quizData, school: e.target.value })} />
         </div>
 
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>School Year</label>
+            <input type="text" className="neu-input" placeholder="e.g. S.Y. 2026-2027" value={quizData.schoolYear} onChange={(e) => setQuizData({ ...quizData, schoolYear: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>Term</label>
+            <input type="text" className="neu-input" placeholder="e.g. FIRST TERM" value={quizData.term} onChange={(e) => setQuizData({ ...quizData, term: e.target.value })} />
+          </div>
+        </div>
+
         <div className="form-group">
           <label>Teacher Name</label>
           <input type="text" className="neu-input" placeholder="Enter teacher name" value={quizData.teacher} onChange={(e) => setQuizData({ ...quizData, teacher: e.target.value })} />
@@ -408,21 +421,56 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Document Header */}
-              <h1 style={{ textAlign: 'center', fontSize: '26px', fontWeight: '800', marginBottom: '24px', color: '#1E3A8A', letterSpacing: '0.5px' }}>{quizData.title}</h1>
+              {/* Document Header with Upper-Left Logos & Centered School Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', marginBottom: '24px', gap: '16px' }}>
+                {/* Upper Left Logos */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'flex-start' }}>
+                  <img
+                    src="/images/logo_deped_matatag.png"
+                    alt="DepEd MATATAG"
+                    style={{ height: '1.07cm', width: '2.03cm', objectFit: 'contain' }}
+                  />
+                  <img
+                    src="/images/logo_deped_seal.png"
+                    alt="Kagawaran ng Edukasyon Seal"
+                    style={{ height: '1.38cm', width: '1.38cm', objectFit: 'contain' }}
+                  />
+                </div>
+
+                {/* Center School Info & Title */}
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#1E3A8A', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {quizData.school || "MEDINA INTEGRATED SCHOOL"}
+                  </div>
+                  <h1 style={{ fontSize: '20px', fontWeight: '800', color: '#111827', margin: '3px 0' }}>
+                    {quizData.title}
+                  </h1>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>
+                    {quizData.schoolYear || "S.Y. 2026-2027"}
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>
+                    TERM: {quizData.term || "FIRST TERM"}
+                  </div>
+                </div>
+
+                {/* Right Spacer */}
+                <div style={{ minWidth: '3.41cm' }} />
+              </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px', fontSize: '14px' }}>
-                <div><strong>School:</strong> {quizData.school || "________________________"}</div>
-                <div><strong>Teacher:</strong> {quizData.teacher || "________________________"}</div>
-                <div><strong>Name:</strong> ________________________</div>
-                <div><strong>Score:</strong> _______ / {totalQuestions}</div>
-                <div><strong>Grade/Section:</strong> _________________</div>
-                <div><strong>Date:</strong> ________________________</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', fontSize: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div><strong>Name:</strong> ____________________________________</div>
+                  <div><strong>Score:</strong> _______</div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div><strong>Grade & Section:</strong> ________________________</div>
+                  <div><strong>Date:</strong> ________________________</div>
+                </div>
               </div>
 
               {quizData.instructions && (
                 <div style={{ marginBottom: '32px', fontSize: '14px', background: 'rgba(255,255,255,0.7)', padding: '12px 16px', borderRadius: '6px', borderLeft: '4px solid #1E3A8A' }}>
-                  <strong>General Directions:</strong> {quizData.instructions}
+                  <strong>GENERAL DIRECTIONS:</strong> {quizData.instructions.replace(/^\s*general\s+directions\s*:\s*/i, '')}
                 </div>
               )}
 

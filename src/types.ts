@@ -19,6 +19,8 @@ export interface WorksheetData {
   title: string;
   teacher: string;
   school: string;
+  schoolYear?: string;
+  term?: string;
   instructions: string;
   sections: Section[];
 }
