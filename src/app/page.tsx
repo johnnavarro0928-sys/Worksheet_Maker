@@ -440,7 +440,7 @@ export default function Home() {
                 {/* Center School Info & Title */}
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: '15px', fontWeight: '800', color: '#1E3A8A', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    {quizData.school || "MEDINA INTEGRATED SCHOOL"}
+                    {quizData.school || "SCHOOL NAME"}
                   </div>
                   <h1 style={{ fontSize: '20px', fontWeight: '800', color: '#111827', margin: '3px 0' }}>
                     {quizData.title}
