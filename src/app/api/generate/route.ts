@@ -4,10 +4,12 @@ import { generateQuizQuestions } from './ai';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { topic, grade, subject, type, difficulty, count } = body;
+    const { topic, competency, objective, grade, subject, type, difficulty, count } = body;
 
     const questions = await generateQuizQuestions({
       topic,
+      competency,
+      objective,
       grade,
       subject,
       type,

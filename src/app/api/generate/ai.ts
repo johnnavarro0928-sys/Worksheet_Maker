@@ -5,9 +5,12 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
+import { formatFormula } from '../../../utils/formatFormula';
 
 export interface QuizParams {
   topic: string; 
+  competency?: string;
+  objective?: string;
   grade: string; 
   subject: string; 
   difficulty: string; 
@@ -75,7 +78,7 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
     return Array.from({ length: params.count }).map((_, i) => ({
       id: `mock-${i}`,
       type: params.type,
-      text: `Mock Question ${i + 1} for ${params.subject}?`,
+      text: formatFormula(`Mock Question ${i + 1} for ${params.subject}?`),
       options: params.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
       correctAnswer: 0
     }));
@@ -94,7 +97,20 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
   });
 
   const schema = getSchemaForType(params.type);
-  const prompt = `Generate a ${params.type} test with ${params.count} questions about "${params.topic}" for ${params.grade} ${params.subject} students. Difficulty: ${params.difficulty}.`;
+
+  const prompt = `You are an expert educator. Generate a ${params.type} test with ${params.count} questions.
+
+Target Context:
+- Subject: ${params.subject} (${params.grade})
+- Topic: ${params.topic}
+- Learning Competency: ${params.competency || "Standard curriculum alignment for " + params.topic}
+- Specific Objective: ${params.objective || "Standard learning objective for " + params.topic}
+- Difficulty Level: ${params.difficulty}
+
+STRICT ALIGNMENT & FORMATTING RULES:
+1. Questions MUST directly evaluate the specified Learning Competency and Specific Objective at the appropriate cognitive depth.
+2. For all mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
+3. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.`;
 
   let object: any;
   let lastError: any;
@@ -121,8 +137,8 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
   return object.questions.map((q: any, i: number) => ({
     id: `q-${Date.now()}-${i}`,
     type: params.type,
-    text: q.text,
-    options: q.options || undefined,
+    text: formatFormula(q.text),
+    options: q.options ? q.options.map((opt: string) => formatFormula(opt)) : undefined,
     correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined
   }));
 }
