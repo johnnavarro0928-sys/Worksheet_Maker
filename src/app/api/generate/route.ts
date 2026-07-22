@@ -4,9 +4,7 @@ import { generateQuizQuestions } from './ai';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { topic, grade, subject, type, difficulty, count, modelName = 'google/gemini-2.5-flash:free' } = body;
-
-    const apiKey = process.env.OPENROUTER_API_KEY || '';
+    const { topic, grade, subject, type, difficulty, count } = body;
 
     const questions = await generateQuizQuestions({
       topic,
@@ -15,7 +13,7 @@ export async function POST(req: Request) {
       type,
       difficulty,
       count: parseInt(count) || 5
-    }, modelName, apiKey);
+    });
 
     // Map output to the frontend expected format
     const formattedQuestions = questions.map(q => ({

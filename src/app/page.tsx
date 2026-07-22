@@ -22,8 +22,7 @@ export default function Home() {
     subject: "Science",
     type: "Multiple Choice",
     difficulty: "Average",
-    count: 5,
-    modelName: "google/gemini-2.5-flash:free"
+    count: 5
   });
 
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -124,17 +123,7 @@ export default function Home() {
           </select>
         </div>
 
-        <div className="form-group">
-          <label>AI Model</label>
-          <select className="neu-input" value={generateConfig.modelName} onChange={(e) => setGenerateConfig({...generateConfig, modelName: e.target.value})}>
-            <option value="google/gemini-2.5-flash:free">Gemini 2.5 Flash (Fast)</option>
-            <option value="meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Open Source)</option>
-            <option value="microsoft/phi-3-mini-128k-instruct:free">Microsoft Phi-3 (Stable)</option>
-            <option value="google/gemma-2-9b-it:free">Gemma 2 9B (Google)</option>
-            <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 (Capable)</option>
-          </select>
-        </div>
-        
+
         <div style={{ display: 'flex', gap: '16px' }}>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Difficulty</label>
