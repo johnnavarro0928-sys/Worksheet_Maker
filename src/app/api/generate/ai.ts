@@ -164,16 +164,23 @@ STRICT ALIGNMENT & FORMATTING RULES:
   let lastError: any;
 
   for (let i = 0; i < languageModels.length; i++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout per model attempt
+
     try {
       const response = await generateObject({
         model: languageModels[i],
         schema: schema,
         prompt: prompt,
+        temperature: 0.3,
+        abortSignal: controller.signal,
       });
+      clearTimeout(timeoutId);
       object = response.object;
       break;
     } catch (error) {
-      console.warn(`AI Model at index ${i} failed. Trying fallback...`, error);
+      clearTimeout(timeoutId);
+      console.warn(`AI Model at index ${i} failed or timed out after 10s. Trying fallback...`, error);
       lastError = error;
     }
   }
