@@ -392,6 +392,10 @@ export default function Home() {
           <label>General Directions</label>
           <textarea className="neu-input" rows={3} style={{ resize: 'vertical' }} value={quizData.instructions} onChange={(e) => setQuizData({ ...quizData, instructions: e.target.value })}></textarea>
         </div>
+
+        <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.06)', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+          Copyright © {new Date().getFullYear()} Sayuna AI.<br/>All rights reserved.
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -657,13 +661,13 @@ export default function Home() {
               </button>
             </div>
           </div>
+
+          {/* Dynamic Copyright Footer */}
+          <footer style={{ textAlign: 'center', padding: '6px 0 2px 0', fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600', opacity: 0.85 }}>
+            Copyright © {new Date().getFullYear()} Sayuna AI. All rights reserved.
+          </footer>
         </section>
       </main>
-
-      {/* Dynamic Copyright Footer */}
-      <footer style={{ width: '100%', textAlign: 'center', padding: '16px 0 8px 0', fontSize: '13px', color: '#64748B', fontWeight: '500' }}>
-        Copyright © {new Date().getFullYear()} Sayuna AI. All rights reserved.
-      </footer>
 
       {/* Animation Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
