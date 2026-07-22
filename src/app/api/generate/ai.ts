@@ -8,9 +8,14 @@ import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 
-const DEFAULT_MODEL_TIMEOUT_MS = 30000;
+const DEFAULT_MODEL_TIMEOUT_MS = 55000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
 const MAX_MODEL_TIMEOUT_MS = 60000;
+const DEFAULT_OPENROUTER_MODELS = [
+  'google/gemini-2.5-flash:free',
+  'meta-llama/llama-3-8b-instruct:free',
+  'microsoft/phi-3-mini-128k-instruct:free',
+];
 
 type GeneratedQuestion = {
   text?: string;
@@ -20,6 +25,11 @@ type GeneratedQuestion = {
 
 type GeneratedQuestionsObject = {
   questions?: GeneratedQuestion[];
+};
+
+type ModelAttemptConfig = {
+  providerName: string;
+  modelName: string;
 };
 
 export interface QuizParams {
@@ -43,6 +53,49 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   return String(error || 'unknown_error');
+}
+
+function appendOpenRouterFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttemptConfig[] {
+  if (!process.env.OPENROUTER_API_KEY) return modelConfigs;
+
+  const configs = [...modelConfigs];
+  const seen = new Set(configs.map(config => `${config.providerName}:${config.modelName}`));
+
+  for (const modelName of DEFAULT_OPENROUTER_MODELS) {
+    const key = `openrouter:${modelName}`;
+    if (seen.has(key)) continue;
+
+    configs.push({ providerName: 'openrouter', modelName });
+    seen.add(key);
+  }
+
+  return configs;
+}
+
+function getModelAttemptConfigs(): ModelAttemptConfig[] {
+  // Parse comma-separated lists of providers and models
+  const hasAzureConfig = Boolean(
+    process.env.AZURE_OPENAI_API_KEY ||
+    process.env.AZURE_API_KEY ||
+    process.env.AZURE_OPENAI_ENDPOINT ||
+    process.env.AZURE_BASE_URL ||
+    process.env.AZURE_RESOURCE_NAME
+  );
+  const defaultProvider = hasAzureConfig ? 'azure' : 'openrouter';
+  const defaultModels = hasAzureConfig
+    ? (process.env.AZURE_MODEL || 'gpt-5-mini-2')
+    : DEFAULT_OPENROUTER_MODELS.join(',');
+
+  const providersStr = process.env.ACTIVE_AI_PROVIDERS || process.env.ACTIVE_AI_PROVIDER || defaultProvider;
+  const modelsStr = process.env.ACTIVE_AI_MODELS || process.env.ACTIVE_AI_MODEL || defaultModels;
+
+  const providerNames = providersStr.split(',').map(s => s.trim()).filter(Boolean);
+  const modelNames = modelsStr.split(',').map(s => s.trim()).filter(Boolean);
+
+  return appendOpenRouterFallbacks(modelNames.map((modelName, index) => ({
+    providerName: providerNames[index] || providerNames[0] || defaultProvider,
+    modelName,
+  })));
 }
 
 function getProviderModel(providerName: string, modelName: string): LanguageModel {
@@ -132,29 +185,8 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
     }));
   }
 
-  // Parse comma-separated lists of providers and models
-  const hasAzureConfig = Boolean(
-    process.env.AZURE_OPENAI_API_KEY ||
-    process.env.AZURE_API_KEY ||
-    process.env.AZURE_OPENAI_ENDPOINT ||
-    process.env.AZURE_BASE_URL ||
-    process.env.AZURE_RESOURCE_NAME
-  );
-  const defaultProvider = hasAzureConfig ? 'azure' : 'openrouter';
-  const defaultModels = hasAzureConfig 
-    ? (process.env.AZURE_MODEL || 'gpt-5-mini-2') 
-    : 'google/gemini-2.5-flash:free,meta-llama/llama-3-8b-instruct:free,microsoft/phi-3-mini-128k-instruct:free';
-
-  const providersStr = process.env.ACTIVE_AI_PROVIDERS || process.env.ACTIVE_AI_PROVIDER || defaultProvider;
-  const modelsStr = process.env.ACTIVE_AI_MODELS || process.env.ACTIVE_AI_MODEL || defaultModels;
-
-  const providerNames = providersStr.split(',').map(s => s.trim());
-  const modelNames = modelsStr.split(',').map(s => s.trim());
-
-  const languageModels: LanguageModel[] = modelNames.map((modelName, index) => {
-    const providerName = providerNames[index] || providerNames[0]; 
-    return getProviderModel(providerName, modelName);
-  });
+  const modelConfigs = getModelAttemptConfigs();
+  const languageModels: LanguageModel[] = modelConfigs.map(config => getProviderModel(config.providerName, config.modelName));
 
   const schema = getSchemaForType(params.type);
 
@@ -208,7 +240,8 @@ STRICT ALIGNMENT & FORMATTING RULES:
       break;
     } catch (error) {
       clearTimeout(timeoutId);
-      console.warn(`AI Model at index ${i} failed or timed out after ${modelTimeoutMs}ms. Trying fallback...`, error);
+      const modelConfig = modelConfigs[i];
+      console.warn(`AI model ${modelConfig.providerName}:${modelConfig.modelName} failed or timed out after ${modelTimeoutMs}ms. Trying fallback...`, error);
       lastError = error;
     }
   }

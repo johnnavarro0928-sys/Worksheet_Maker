@@ -107,4 +107,84 @@ describe('generateQuizQuestions', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await expect(generation).resolves.toHaveLength(1);
   });
+
+  it('allows slow valid generations to finish before the route timeout by default', async () => {
+    vi.useFakeTimers();
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openrouter';
+    process.env.ACTIVE_AI_MODEL = 'openrouter/test-model';
+    delete process.env.AI_MODEL_TIMEOUT_MS;
+
+    let capturedSignal: AbortSignal | undefined;
+    aiMocks.generateObject.mockImplementation(({ abortSignal }: { abortSignal?: AbortSignal }) => {
+      capturedSignal = abortSignal;
+
+      return new Promise((resolve, reject) => {
+        abortSignal?.addEventListener('abort', () => reject(new Error('This operation was aborted')));
+        setTimeout(() => {
+          resolve({
+            object: {
+              questions: [
+                {
+                  text: 'What causes day and night?',
+                  options: ['A', 'B', 'C', 'D'],
+                  correctAnswer: 0,
+                },
+              ],
+            },
+          });
+        }, 45000);
+      });
+    });
+
+    const generation = generateQuizQuestions({
+      topic: 'Earth rotation',
+      grade: '5',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    });
+    void generation.catch(() => undefined);
+
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(capturedSignal?.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(15000);
+    await expect(generation).resolves.toHaveLength(1);
+  });
+
+  it('uses default OpenRouter fallbacks when a single configured OpenRouter model fails', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openrouter';
+    process.env.ACTIVE_AI_MODEL = 'openrouter/slow-model';
+
+    aiMocks.generateObject
+      .mockRejectedValueOnce(new Error('This operation was aborted'))
+      .mockResolvedValueOnce({
+        object: {
+          questions: [
+            {
+              text: 'What is evaporation?',
+              options: ['A', 'B', 'C', 'D'],
+              correctAnswer: 0,
+            },
+          ],
+        },
+      });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Water cycle',
+      grade: '4',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    });
+
+    expect(questions).toHaveLength(1);
+    expect(aiMocks.generateObject).toHaveBeenCalledTimes(2);
+    expect(aiMocks.createModel).toHaveBeenCalledWith('openrouter/slow-model');
+    expect(aiMocks.createModel).toHaveBeenCalledWith('google/gemini-2.5-flash:free');
+  });
 });
