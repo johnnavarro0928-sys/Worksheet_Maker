@@ -283,12 +283,13 @@ export default function Home() {
           </div>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Subject</label>
-            <select className="neu-input" value={generateConfig.subject} onChange={(e) => setGenerateConfig({ ...generateConfig, subject: e.target.value })}>
-              <option>Science</option>
-              <option>Mathematics</option>
-              <option>English</option>
-              <option>History</option>
-            </select>
+            <input
+              type="text"
+              className="neu-input"
+              placeholder="e.g. Science, Araling Panlipunan..."
+              value={generateConfig.subject}
+              onChange={(e) => setGenerateConfig({ ...generateConfig, subject: e.target.value })}
+            />
           </div>
         </div>
 
