@@ -358,14 +358,14 @@ export default function Home() {
 
         <hr style={{ border: 'none', borderTop: '1px solid var(--shadow-dark)', margin: '12px 0', opacity: 0.4 }} />
 
-        <div style={{ padding: '0 5px', marginBottom: '4px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={16} /> Quiz Headers & Info
-          </h2>
+        <div style={{ padding: '0 5px', marginTop: '8px', marginBottom: '4px' }}>
+          <h3 style={{ fontSize: '13px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-color)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <BookOpen size={16} /> Worksheet Headers & Info
+          </h3>
         </div>
 
         <div className="form-group">
-          <label>Quiz Title</label>
+          <label>Worksheet Title</label>
           <input type="text" className="neu-input" value={quizData.title} onChange={(e) => setQuizData({ ...quizData, title: e.target.value })} />
         </div>
 
