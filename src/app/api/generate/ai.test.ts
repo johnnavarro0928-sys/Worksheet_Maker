@@ -154,6 +154,35 @@ describe('generateQuizQuestions', () => {
     await expect(generation).resolves.toHaveLength(1);
   });
 
+  it('omits temperature for reasoning models', async () => {
+    delete process.env.OPENROUTER_API_KEY;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-5-mini-2';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [
+          {
+            text: 'What is a dependent variable?',
+            options: ['A', 'B', 'C', 'D'],
+            correctAnswer: 0,
+          },
+        ],
+      },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Variables',
+      grade: '8',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    });
+
+    expect(aiMocks.generateObject.mock.calls[0][0]).not.toHaveProperty('temperature');
+  });
+
   it('uses default OpenRouter fallbacks when a single configured OpenRouter model fails', async () => {
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.ACTIVE_AI_PROVIDER = 'openrouter';

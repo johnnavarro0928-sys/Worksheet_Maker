@@ -60,6 +60,11 @@ function getErrorMessage(error: unknown): string {
   return String(error || 'unknown_error');
 }
 
+function isReasoningModel(modelName: string): boolean {
+  const normalizedName = modelName.trim().toLowerCase().split('/').pop() || '';
+  return /^(?:gpt-5(?:[-.]|$)|o\d+(?:[-.]|$))/.test(normalizedName);
+}
+
 function appendOpenRouterFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttemptConfig[] {
   if (!process.env.OPENROUTER_API_KEY) return modelConfigs;
 
@@ -241,7 +246,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
           model: languageModels[i],
           schema: schema,
           prompt: prompt,
-          temperature: 0.2,
+          ...(isReasoningModel(modelConfigs[i].modelName) ? {} : { temperature: 0.2 }),
           abortSignal: controller.signal,
         });
         clearTimeout(timeoutId);
