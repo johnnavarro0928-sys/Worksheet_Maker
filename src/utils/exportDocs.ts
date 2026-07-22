@@ -39,7 +39,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
       new TableCell({
         borders: noBorder,
         verticalAlign: VerticalAlign.CENTER,
-        width: { size: 1250, type: WidthType.DXA },
+        width: { size: 1440, type: WidthType.DXA },
         children: [
           new Paragraph({
             alignment: AlignmentType.LEFT,
@@ -48,7 +48,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
                 data: matatagBuffer,
                 type: "png",
                 transformation: {
-                  width: cmToPx(2.03), // 2.03 cm width
+                  width: cmToPx(2.54), // 2.54 cm width
                   height: cmToPx(1.07) // 1.07 cm height
                 }
               })
@@ -85,7 +85,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
   }
 
   const logosSubTable = new Table({
-    width: { size: 2100, type: WidthType.DXA },
+    width: { size: 2290, type: WidthType.DXA },
     borders: noBorder,
     rows: [
       new TableRow({

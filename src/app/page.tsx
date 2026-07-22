@@ -466,7 +466,7 @@ export default function Home() {
                   <img
                     src="/images/logo_deped_matatag.png"
                     alt="DepEd MATATAG"
-                    style={{ height: '1.07cm', width: '2.03cm', objectFit: 'contain' }}
+                    style={{ height: '1.07cm', width: '2.54cm', objectFit: 'contain' }}
                   />
                   <img
                     src="/images/logo_deped_seal.png"
