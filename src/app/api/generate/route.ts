@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { generateQuizQuestions } from './ai';
+import { requireExistingSession } from '../_lib/sessionAuth';
 
 export async function POST(req: Request) {
+  const sessionError = await requireExistingSession(req);
+  if (sessionError) return sessionError;
+
   try {
     const body = await req.json();
     const { topic, competency, objective, grade, subject, type, difficulty, count } = body;
@@ -30,8 +34,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ questions: formattedQuestions });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating quiz:', error);
-    return NextResponse.json({ error: error.message || 'Failed to generate quiz' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to generate quiz';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

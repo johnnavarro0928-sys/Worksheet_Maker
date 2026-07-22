@@ -5,7 +5,7 @@ describe('generateQuizQuestions', () => {
   it('throws an error if no API key is provided', async () => {
     await expect(generateQuizQuestions({
       topic: 'test', grade: '10', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 5
-    }, 'openai/gpt-4o', '')).rejects.toThrow('OpenRouter API key required');
+    }, 'openai/gpt-4o', '')).rejects.toThrow('OPENROUTER_API_KEY required for OpenRouter provider');
   });
 
   it('returns mock questions if topic is "MOCK_TEST"', async () => {
