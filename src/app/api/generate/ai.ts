@@ -3,6 +3,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createAzure } from '@ai-sdk/azure';
 import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
@@ -20,6 +21,15 @@ export interface QuizParams {
 
 function getProviderModel(providerName: string, modelName: string): LanguageModel {
   switch (providerName) {
+    case 'azure': {
+      if (!process.env.AZURE_API_KEY) throw new Error('AZURE_API_KEY required for Azure provider');
+      const azure = createAzure({
+        resourceName: process.env.AZURE_RESOURCE_NAME,
+        apiKey: process.env.AZURE_API_KEY,
+        baseURL: process.env.AZURE_BASE_URL,
+      });
+      return azure(modelName);
+    }
     case 'openai': {
       if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY required for OpenAI provider');
       const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
