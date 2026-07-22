@@ -22,12 +22,12 @@ export interface QuizParams {
 function getProviderModel(providerName: string, modelName: string): LanguageModel {
   switch (providerName) {
     case 'azure': {
-      const apiKey = process.env.AZURE_API_KEY || process.env.OPENAI_API_KEY;
-      if (!apiKey) throw new Error('AZURE_API_KEY or OPENAI_API_KEY required for Azure provider');
+      const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.AZURE_API_KEY || process.env.OPENAI_API_KEY;
+      if (!apiKey) throw new Error('AZURE_OPENAI_API_KEY, AZURE_API_KEY, or OPENAI_API_KEY required for Azure provider');
 
-      const baseURL = process.env.AZURE_BASE_URL || 'https://sayuna-ai.services.ai.azure.com/openai/v1';
+      const baseURL = process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_BASE_URL || 'https://sayuna-ai.services.ai.azure.com/openai/v1';
 
-      if (process.env.AZURE_RESOURCE_NAME && !process.env.AZURE_BASE_URL) {
+      if (process.env.AZURE_RESOURCE_NAME && !process.env.AZURE_OPENAI_ENDPOINT && !process.env.AZURE_BASE_URL) {
         const azure = createAzure({
           resourceName: process.env.AZURE_RESOURCE_NAME,
           apiKey: apiKey,
@@ -107,7 +107,13 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
   }
 
   // Parse comma-separated lists of providers and models
-  const hasAzureConfig = Boolean(process.env.AZURE_API_KEY || process.env.AZURE_BASE_URL || process.env.AZURE_RESOURCE_NAME);
+  const hasAzureConfig = Boolean(
+    process.env.AZURE_OPENAI_API_KEY ||
+    process.env.AZURE_API_KEY ||
+    process.env.AZURE_OPENAI_ENDPOINT ||
+    process.env.AZURE_BASE_URL ||
+    process.env.AZURE_RESOURCE_NAME
+  );
   const defaultProvider = hasAzureConfig ? 'azure' : 'openrouter';
   const defaultModels = hasAzureConfig 
     ? (process.env.AZURE_MODEL || 'gpt-5-mini-2') 
