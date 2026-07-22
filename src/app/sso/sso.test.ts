@@ -33,6 +33,10 @@ async function loadSsoRoute() {
   return import("./route").catch(() => null);
 }
 
+async function loadProxy() {
+  return import("../../proxy").catch(() => null);
+}
+
 describe("Worksheet Maker App Store SSO", () => {
   beforeEach(() => {
     process.env = {
@@ -101,5 +105,52 @@ describe("Worksheet Maker App Store SSO", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ error: "no_session" });
+  });
+
+  it("redirects direct app access back to the App Store when no session exists", async () => {
+    process.env.APPSTORE_HOME_URL = "https://sayuna-ai.com";
+
+    const proxyModule = await loadProxy();
+    expect(proxyModule?.proxy, "proxy route guard exists").toBeTypeOf("function");
+
+    const response = await proxyModule!.proxy(new Request("https://worksheetmaker.sayuna-ai.com/"));
+
+    expect(response?.status).toBe(302);
+    expect(response?.headers.get("location")).toBe(
+      "https://sayuna-ai.com/?returnTo=https%3A%2F%2Fworksheetmaker.sayuna-ai.com%2F",
+    );
+  });
+
+  it("allows app shell access when a valid App Store session cookie exists", async () => {
+    const ssoRoute = await loadSsoRoute();
+    const proxyModule = await loadProxy();
+    expect(ssoRoute?.GET, "sso route exposes GET").toBeTypeOf("function");
+    expect(proxyModule?.proxy, "proxy route guard exists").toBeTypeOf("function");
+
+    const ssoResponse = await ssoRoute!.GET(
+      new Request(`https://worksheetmaker.sayuna-ai.com/sso?access=${encodeURIComponent(createAccessToken())}`),
+    );
+    const cookie = ssoResponse.headers.get("set-cookie") || "";
+
+    const response = await proxyModule!.proxy(
+      new Request("https://worksheetmaker.sayuna-ai.com/", {
+        headers: { cookie },
+      }),
+    );
+
+    expect(response?.status).toBe(200);
+    expect(response?.headers.get("location")).toBeNull();
+  });
+
+  it("does not gate public image assets", async () => {
+    const proxyModule = await loadProxy();
+    expect(proxyModule?.proxy, "proxy route guard exists").toBeTypeOf("function");
+
+    const response = await proxyModule!.proxy(
+      new Request("https://worksheetmaker.sayuna-ai.com/images/sayuna_logo.png"),
+    );
+
+    expect(response?.status).toBe(200);
+    expect(response?.headers.get("location")).toBeNull();
   });
 });
