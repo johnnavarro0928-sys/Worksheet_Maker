@@ -132,19 +132,32 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
 
   const schema = getSchemaForType(params.type);
 
-  const prompt = `You are an expert educator. Generate a ${params.type} test with ${params.count} questions.
+  const prompt = `You are a master curriculum specialist and item writer. Generate a ${params.type} test with ${params.count} questions.
 
-Target Context:
-- Subject: ${params.subject} (${params.grade})
+TARGET AUDIENCE & CONTEXT:
+- Subject: ${params.subject}
+- Grade Level: ${params.grade}
 - Topic: ${params.topic}
 - Learning Competency: ${params.competency || "Standard curriculum alignment for " + params.topic}
 - Specific Objective: ${params.objective || "Standard learning objective for " + params.topic}
-- Difficulty Level: ${params.difficulty}
+- Target Difficulty Level: ${params.difficulty}
+
+GRADE-LEVEL COGNITIVE & VOCABULARY ADAPTATION:
+- Kindergarten - Grade 2: Use simple, short, age-appropriate sentences, concrete familiar terms, and direct foundational concepts.
+- Grade 3 - Grade 6: Use clear elementary vocabulary, basic conceptual understanding, and simple multi-step application.
+- Grade 7 - Grade 10: Use standard secondary academic terminology, structured problem solving, and analytical reasoning.
+- Grade 11 - Grade 12: Use advanced senior-high subject terminology, rigorous analytical depth, and complex domain synthesis.
+
+DIFFICULTY LEVEL ALIGNMENT (BLOOM'S TAXONOMY):
+- EASY (Remembering & Understanding): Focus on direct factual recall, basic definitions, and simple identification. Options and prompts must be clear and straightforward without tricky phrasing.
+- AVERAGE (Applying & Analyzing): Focus on concept application, 2-step problem solving, comparing scenarios, and logical deduction suitable for ${params.grade}.
+- DIFFICULT (Evaluating & Creating / HOTS): Focus on Higher-Order Thinking Skills (HOTS)—multi-step analytical evaluation, complex scenario analysis, synthesis of principles, and plausible distractors that require deep mastery.
 
 STRICT ALIGNMENT & FORMATTING RULES:
-1. Questions MUST directly evaluate the specified Learning Competency and Specific Objective at the appropriate cognitive depth.
-2. For all mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
-3. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.`;
+1. Every question MUST strictly evaluate the specified Learning Competency and Specific Objective at the exact ${params.difficulty} cognitive depth for ${params.grade}.
+2. Distractor choices for Multiple Choice MUST be plausible and educationally meaningful, avoiding obvious filler options.
+3. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
+4. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.`;
 
   let object: any;
   let lastError: any;
