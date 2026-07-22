@@ -266,6 +266,14 @@ export default function Home() {
           <div className="form-group" style={{ flex: 1 }}>
             <label>Grade</label>
             <select className="neu-input" value={generateConfig.grade} onChange={(e) => setGenerateConfig({ ...generateConfig, grade: e.target.value })}>
+              <option>Kindergarten</option>
+              <option>Grade 1</option>
+              <option>Grade 2</option>
+              <option>Grade 3</option>
+              <option>Grade 4</option>
+              <option>Grade 5</option>
+              <option>Grade 6</option>
+              <option>Grade 7</option>
               <option>Grade 8</option>
               <option>Grade 9</option>
               <option>Grade 10</option>
