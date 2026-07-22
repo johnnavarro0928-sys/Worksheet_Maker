@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ImageRun } from "docx";
+import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ImageRun, VerticalAlign } from "docx";
 import { saveAs } from "file-saver";
 import { WorksheetData } from "../types";
 
@@ -72,6 +72,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
           new TableCell({
             width: { size: 30, type: WidthType.PERCENTAGE },
             borders: noBorder,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 children: logoChildren,
@@ -83,6 +84,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
           new TableCell({
             width: { size: 40, type: WidthType.PERCENTAGE },
             borders: noBorder,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
@@ -114,6 +116,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
           new TableCell({
             width: { size: 30, type: WidthType.PERCENTAGE },
             borders: noBorder,
+            verticalAlign: VerticalAlign.CENTER,
             children: [new Paragraph({ text: "" })]
           })
         ]
