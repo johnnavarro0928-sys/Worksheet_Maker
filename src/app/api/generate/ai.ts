@@ -154,11 +154,12 @@ DIFFICULTY LEVEL ALIGNMENT (BLOOM'S TAXONOMY):
 - DIFFICULT (Evaluating & Creating / HOTS): Focus on Higher-Order Thinking Skills (HOTS)—multi-step analytical evaluation, complex scenario analysis, synthesis of principles, and plausible distractors that require deep mastery.
 
 STRICT ALIGNMENT & FORMATTING RULES:
-1. Every question MUST strictly evaluate the specified Learning Competency and Specific Objective at the exact ${params.difficulty} cognitive depth for ${params.grade}.
-2. Distractor choices for Multiple Choice MUST be plausible and educationally meaningful, avoiding obvious filler options.
-3. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
-4. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
-5. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
+1. If multiple Learning Competencies or Specific Objectives are specified (e.g. separated by commas, semicolons, numbers, or bullet points), evenly distribute the ${params.count} generated test questions across ALL of the listed competencies and objectives.
+2. Every question MUST strictly evaluate the specified Learning Competencies and Specific Objectives at the exact ${params.difficulty} cognitive depth for ${params.grade}.
+3. Distractor choices for Multiple Choice MUST be plausible and educationally meaningful, avoiding obvious filler options.
+4. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
+5. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
+6. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
 
   let object: any;
   let lastError: any;

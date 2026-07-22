@@ -249,25 +249,27 @@ export default function Home() {
         </div>
 
         <div className="form-group">
-          <label>Learning Competency</label>
-          <input
-            type="text"
+          <label>Learning Competencies</label>
+          <textarea
             className="neu-input"
-            placeholder="e.g. Identify planets and orbits..."
+            rows={2}
+            style={{ resize: 'vertical' }}
+            placeholder="Enter one or more competencies (e.g. 1. Identify planets, 2. Compare orbits)..."
             value={generateConfig.competency}
             onChange={(e) => setGenerateConfig({ ...generateConfig, competency: e.target.value })}
-          />
+          ></textarea>
         </div>
 
         <div className="form-group">
           <label>Specific Objectives <span style={{ fontSize: '10px', opacity: 0.6 }}>(Optional)</span></label>
-          <input
-            type="text"
+          <textarea
             className="neu-input"
-            placeholder="e.g. Name inner vs outer planets..."
+            rows={2}
+            style={{ resize: 'vertical' }}
+            placeholder="Enter one or more objectives (e.g. 1. Recall planet names, 2. Calculate distance)..."
             value={generateConfig.objective}
             onChange={(e) => setGenerateConfig({ ...generateConfig, objective: e.target.value })}
-          />
+          ></textarea>
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
