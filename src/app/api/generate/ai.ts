@@ -45,11 +45,10 @@ export interface QuizParams {
 
 function getModelTimeoutMs(count?: number): number {
   const parsed = Number.parseInt(process.env.AI_MODEL_TIMEOUT_MS || '', 10);
-  if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
+  if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(12000, parsed));
   
-  // Dynamic scaling: 35s base + 2.5s per question item, capped at 60s
-  const calculated = 35000 + (Math.max(1, count || 5) * 2500);
-  return Math.min(MAX_MODEL_TIMEOUT_MS, calculated);
+  // Fast timeout: max 12 seconds per attempt to guarantee completion within Vercel's 15s Gateway Limit
+  return 12000;
 }
 
 function getErrorMessage(error: unknown): string {

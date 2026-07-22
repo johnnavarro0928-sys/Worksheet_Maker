@@ -179,21 +179,35 @@ export default function Home() {
 
     setIsGenerating(true);
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(generateConfig)
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Generation Error (${res.status}): ${errorData.error || res.statusText || 'Failed to generate questions'}`);
-        return;
+      const totalCount = generateConfig.count || 5;
+      // Split into parallel batches of max 5 questions each to guarantee completion within Vercel's 15s limit
+      const batches: number[] = [];
+      let remaining = totalCount;
+      while (remaining > 0) {
+        const chunkSize = Math.min(5, remaining);
+        batches.push(chunkSize);
+        remaining -= chunkSize;
       }
 
-      const data = await res.json();
-      if (data.questions && data.questions.length > 0) {
-        const cleanedQuestions = data.questions.map((q: any) => {
+      const fetchBatch = async (batchCount: number) => {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...generateConfig, count: batchCount })
+        });
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(`Generation Error (${res.status}): ${errorData.error || res.statusText || 'Failed to generate questions'}`);
+        }
+        const data = await res.json();
+        return data.questions || [];
+      };
+
+      const results = await Promise.all(batches.map(fetchBatch));
+      const allQuestions = results.flat();
+
+      if (allQuestions.length > 0) {
+        const cleanedQuestions = allQuestions.map((q: any) => {
           let cleanText = (q.text || "").trim();
           while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
             cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
@@ -212,7 +226,7 @@ export default function Home() {
         alert("No questions returned from generator.");
       }
     } catch (e: any) {
-      alert("Network error: Unable to connect to generator API.");
+      alert(e.message || "Network error: Unable to connect to generator API.");
     } finally {
       setIsGenerating(false);
     }
