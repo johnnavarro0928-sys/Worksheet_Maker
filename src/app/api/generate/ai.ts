@@ -43,12 +43,10 @@ export interface QuizParams {
   count: number;
 }
 
-function getModelTimeoutMs(count?: number): number {
+function getModelTimeoutMs(): number {
   const parsed = Number.parseInt(process.env.AI_MODEL_TIMEOUT_MS || '', 10);
-  if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(12000, parsed));
-  
-  // Fast timeout: max 12 seconds per attempt to guarantee completion within Vercel's 15s Gateway Limit
-  return 12000;
+  if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
+  return DEFAULT_MODEL_TIMEOUT_MS;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -231,7 +229,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
 
   let object: GeneratedQuestionsObject | undefined;
   let lastError: unknown;
-  const modelTimeoutMs = getModelTimeoutMs(params.count);
+  const modelTimeoutMs = getModelTimeoutMs();
 
   for (let i = 0; i < languageModels.length; i++) {
     for (let attempt = 1; attempt <= 2; attempt++) {
