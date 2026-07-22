@@ -37,6 +37,10 @@ async function loadProxy() {
   return import("../../proxy").catch(() => null);
 }
 
+async function loadNextConfig() {
+  return import("../../../next.config").catch(() => null);
+}
+
 describe("Worksheet Maker App Store SSO", () => {
   beforeEach(() => {
     process.env = {
@@ -152,5 +156,16 @@ describe("Worksheet Maker App Store SSO", () => {
 
     expect(response?.status).toBe(200);
     expect(response?.headers.get("location")).toBeNull();
+  });
+
+  it("restricts which parent origins can frame Worksheet Maker", async () => {
+    const configModule = await loadNextConfig();
+    const headers = await configModule?.default.headers?.();
+    const framePolicy = headers
+      ?.flatMap((entry) => entry.headers)
+      .find((header) => header.key.toLowerCase() === "content-security-policy")?.value;
+
+    expect(framePolicy).toContain("frame-ancestors 'self' https://sayuna-ai.com https://www.sayuna-ai.com");
+    expect(framePolicy).not.toContain("*");
   });
 });
