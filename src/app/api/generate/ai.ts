@@ -8,6 +8,20 @@ import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 
+const DEFAULT_MODEL_TIMEOUT_MS = 30000;
+const MIN_MODEL_TIMEOUT_MS = 5000;
+const MAX_MODEL_TIMEOUT_MS = 60000;
+
+type GeneratedQuestion = {
+  text?: string;
+  options?: string[];
+  correctAnswer?: number;
+};
+
+type GeneratedQuestionsObject = {
+  questions?: GeneratedQuestion[];
+};
+
 export interface QuizParams {
   topic: string; 
   competency?: string;
@@ -17,6 +31,18 @@ export interface QuizParams {
   difficulty: string; 
   type: string; 
   count: number;
+}
+
+function getModelTimeoutMs(): number {
+  const parsed = Number.parseInt(process.env.AI_MODEL_TIMEOUT_MS || '', 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_MODEL_TIMEOUT_MS;
+  return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error || 'unknown_error');
 }
 
 function getProviderModel(providerName: string, modelName: string): LanguageModel {
@@ -161,12 +187,13 @@ STRICT ALIGNMENT & FORMATTING RULES:
 5. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
 6. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
 
-  let object: any;
-  let lastError: any;
+  let object: GeneratedQuestionsObject | undefined;
+  let lastError: unknown;
+  const modelTimeoutMs = getModelTimeoutMs();
 
   for (let i = 0; i < languageModels.length; i++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout per model attempt
+    const timeoutId = setTimeout(() => controller.abort(), modelTimeoutMs);
 
     try {
       const response = await generateObject({
@@ -177,20 +204,20 @@ STRICT ALIGNMENT & FORMATTING RULES:
         abortSignal: controller.signal,
       });
       clearTimeout(timeoutId);
-      object = response.object;
+      object = response.object as GeneratedQuestionsObject;
       break;
     } catch (error) {
       clearTimeout(timeoutId);
-      console.warn(`AI Model at index ${i} failed or timed out after 10s. Trying fallback...`, error);
+      console.warn(`AI Model at index ${i} failed or timed out after ${modelTimeoutMs}ms. Trying fallback...`, error);
       lastError = error;
     }
   }
 
   if (!object || !object.questions) {
-    throw new Error(`All ${languageModels.length} configured AI models failed to generate questions. Error: ${lastError?.message || lastError}`);
+    throw new Error(`All ${languageModels.length} configured AI models failed to generate questions. Error: ${getErrorMessage(lastError)}`);
   }
 
-  return object.questions.map((q: any, i: number) => {
+  return object.questions.map((q: GeneratedQuestion, i: number) => {
     let cleanText = (q.text || "").trim();
     while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
       cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
