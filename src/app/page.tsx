@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, LayoutTemplate, Plus, BookOpen, Loader2, ArrowUp, ArrowDown, Trash2, CheckCircle2 } from "lucide-react";
+import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, Plus, BookOpen, Loader2, ArrowUp, ArrowDown, Trash2, CheckCircle2, Bookmark } from "lucide-react";
 import { generateDocx } from "../utils/exportDocs";
 import { useState } from "react";
 import { Question, Section, WorksheetData } from "../types";
@@ -170,8 +170,8 @@ export default function Home() {
   };
 
   const handleGenerate = async () => {
-    if (!generateConfig.topic) {
-      alert("Please enter a topic first.");
+    if (!generateConfig.topic || !generateConfig.competency) {
+      alert("Please enter both Topic and Learning Competency before generating.");
       return;
     }
 
@@ -213,15 +213,15 @@ export default function Home() {
 
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
+      {/* 3D Neumorphic Sidebar */}
       <aside className="sidebar neu-flat">
-        <div style={{ padding: '0 5px', marginBottom: '10px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', color: '#007AFF' }}>
-            <PencilRuler size={20} /> QUIZ GENERATOR
+        <div style={{ padding: '0 5px', marginBottom: '4px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-color)' }}>
+            <PencilRuler size={22} /> WORKSHEET MAKER
           </h2>
           {activeSection && (
-            <div style={{ fontSize: '12px', background: '#e3f2fd', color: '#007AFF', padding: '4px 8px', borderRadius: '6px', marginTop: '6px', fontWeight: 'bold' }}>
-              Targeting: {activeSection.title}
+            <div className="handwritten" style={{ fontSize: '15px', color: '#1E3A8A', marginTop: '4px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Bookmark size={14} color="#1E3A8A" /> Active: {activeSection.title.split('.')[0]}
             </div>
           )}
         </div>
@@ -231,25 +231,25 @@ export default function Home() {
           <input
             type="text"
             className="neu-input"
-            placeholder="e.g. Solar System..."
+            placeholder="e.g. Solar System, Photosynthesis..."
             value={generateConfig.topic}
             onChange={(e) => setGenerateConfig({ ...generateConfig, topic: e.target.value })}
           />
         </div>
 
         <div className="form-group">
-          <label>Learning Competency <span style={{ fontSize: '11px', opacity: 0.6 }}>(Optional)</span></label>
+          <label>Learning Competency</label>
           <input
             type="text"
             className="neu-input"
-            placeholder="e.g. Identify planets..."
+            placeholder="e.g. Identify planets and orbits..."
             value={generateConfig.competency}
             onChange={(e) => setGenerateConfig({ ...generateConfig, competency: e.target.value })}
           />
         </div>
 
         <div className="form-group">
-          <label>Specific Objectives <span style={{ fontSize: '11px', opacity: 0.6 }}>(Optional)</span></label>
+          <label>Specific Objectives <span style={{ fontSize: '10px', opacity: 0.6 }}>(Optional)</span></label>
           <input
             type="text"
             className="neu-input"
@@ -259,7 +259,7 @@ export default function Home() {
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '16px' }}>
+        <div style={{ display: 'flex', gap: '12px' }}>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Grade</label>
             <select className="neu-input" value={generateConfig.grade} onChange={(e) => setGenerateConfig({ ...generateConfig, grade: e.target.value })}>
@@ -302,7 +302,7 @@ export default function Home() {
           </select>
         </div>
 
-        <div style={{ display: 'flex', gap: '16px' }}>
+        <div style={{ display: 'flex', gap: '12px' }}>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Difficulty</label>
             <select className="neu-input" value={generateConfig.difficulty} onChange={(e) => setGenerateConfig({ ...generateConfig, difficulty: e.target.value })}>
@@ -326,7 +326,7 @@ export default function Home() {
 
         <button
           className="neu-button-solid bg-ios-blue"
-          style={{ marginTop: '16px', padding: '14px', opacity: isGenerating ? 0.7 : 1, fontSize: '16px' }}
+          style={{ marginTop: '10px', padding: '12px', opacity: isGenerating ? 0.7 : 1, fontSize: '15px' }}
           onClick={handleGenerate}
           disabled={isGenerating}
         >
@@ -334,11 +334,11 @@ export default function Home() {
           {isGenerating ? "Generating..." : `Add to ${activeSection?.title.split('.')[0] || 'Section'}`}
         </button>
 
-        <hr style={{ border: 'none', borderTop: '1px solid var(--shadow-dark)', margin: '20px 0', opacity: 0.5 }} />
+        <hr style={{ border: 'none', borderTop: '1px solid var(--shadow-dark)', margin: '12px 0', opacity: 0.4 }} />
 
-        <div style={{ padding: '0 5px', marginBottom: '10px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={18} /> Quiz Headers & Instructions
+        <div style={{ padding: '0 5px', marginBottom: '4px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={16} /> Quiz Headers & Info
           </h2>
         </div>
 
@@ -358,47 +358,58 @@ export default function Home() {
         </div>
 
         <div className="form-group">
-          <label>General Instructions</label>
+          <label>General Directions</label>
           <textarea className="neu-input" rows={3} style={{ resize: 'vertical' }} value={quizData.instructions} onChange={(e) => setQuizData({ ...quizData, instructions: e.target.value })}></textarea>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="main-content">
+        {/* 3D Neumorphic Topbar */}
         <header className="topbar neu-flat">
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button className="neu-button-solid bg-ios-gray">
-              <Edit3 size={18} /> Edit
+              <Edit3 size={16} /> Edit
             </button>
             <button className="neu-button-solid bg-ios-green">
-              <Eye size={18} /> Preview
+              <Eye size={16} /> Preview
             </button>
             <button className="neu-button-solid bg-ios-gray">
-              <Library size={18} /> Library
+              <Library size={16} /> Library
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button className="neu-button-solid bg-ios-orange">
-              <Save size={18} /> Save
+              <Save size={16} /> Save
             </button>
             <button className="neu-button-solid bg-ios-gray">
-              <Printer size={18} /> Print
+              <Printer size={16} /> Print
             </button>
             <button className="neu-button-solid bg-ios-red">
-              <FileText size={18} /> PDF
+              <FileText size={16} /> PDF
             </button>
             <button className="neu-button-solid bg-ios-blue" onClick={handleExportDocx}>
-              <Download size={18} /> DOCX
+              <Download size={16} /> DOCX
             </button>
           </div>
         </header>
 
-        <section className="preview-area neu-flat" style={{ gap: '20px' }}>
-          <div className="neu-pressed" style={{ padding: '32px', flex: 1, overflowY: 'auto', borderRadius: '16px' }}>
-            <div style={{ maxWidth: '800px', margin: '0 auto', background: '#ffffff', borderRadius: '8px', padding: '40px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', color: '#000' }}>
+        {/* 3D Neumorphic Preview Canvas Desk Area */}
+        <section className="preview-area neu-flat" style={{ gap: '16px' }}>
+          <div className="neu-pressed" style={{ padding: '16px', flex: 1, overflowY: 'auto', borderRadius: '16px' }}>
+            
+            {/* Authentic Notebook Worksheet Sheet */}
+            <div className="notebook-paper" style={{ width: '100%', margin: '0 auto', borderRadius: '8px', padding: '40px 48px', color: 'var(--text-main)' }}>
               
+              {/* Binder Spiral Ring Notches at Top */}
+              <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '24px', opacity: 0.35 }}>
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} style={{ width: '12px', height: '16px', borderRadius: '4px', background: '#333', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' }} />
+                ))}
+              </div>
+
               {/* Document Header */}
-              <h1 style={{ textAlign: 'center', fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>{quizData.title}</h1>
+              <h1 style={{ textAlign: 'center', fontSize: '26px', fontWeight: '800', marginBottom: '24px', color: '#1E3A8A', letterSpacing: '0.5px' }}>{quizData.title}</h1>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px', fontSize: '14px' }}>
                 <div><strong>School:</strong> {quizData.school || "________________________"}</div>
@@ -410,13 +421,13 @@ export default function Home() {
               </div>
 
               {quizData.instructions && (
-                <div style={{ marginBottom: '32px', fontSize: '14px', background: '#f8f9fa', padding: '12px', borderRadius: '6px' }}>
+                <div style={{ marginBottom: '32px', fontSize: '14px', background: 'rgba(255,255,255,0.7)', padding: '12px 16px', borderRadius: '6px', borderLeft: '4px solid #1E3A8A' }}>
                   <strong>General Directions:</strong> {quizData.instructions}
                 </div>
               )}
 
               {/* Sections List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
                 {sections.map((sec, secIdx) => {
                   const isActive = sec.id === activeSectionId;
                   return (
@@ -425,17 +436,18 @@ export default function Home() {
                       onClick={() => handleSelectSection(sec)}
                       style={{
                         padding: '20px',
-                        borderRadius: '8px',
-                        border: isActive ? '2px solid #007AFF' : '1px dashed #ccc',
-                        background: isActive ? '#f4f8ff' : '#fafafa',
+                        borderRadius: '10px',
+                        border: isActive ? '2px solid #1E3A8A' : '1px dashed #cbd5e1',
+                        background: isActive ? 'rgba(238, 242, 255, 0.6)' : 'rgba(255, 255, 255, 0.5)',
+                        boxShadow: isActive ? '0 4px 12px rgba(30, 58, 138, 0.08)' : 'none',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         position: 'relative'
                       }}
                     >
                       {isActive && (
-                        <div style={{ position: 'absolute', top: '-12px', right: '16px', background: '#007AFF', color: '#fff', fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle2 size={12} /> ACTIVE SECTION
+                        <div className="handwritten" style={{ position: 'absolute', top: '-14px', right: '16px', background: '#1E3A8A', color: '#fff', fontSize: '14px', fontWeight: 'bold', padding: '2px 12px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 6px rgba(30,58,138,0.3)' }}>
+                          <CheckCircle2 size={14} /> ACTIVE SECTION
                         </div>
                       )}
 
@@ -446,14 +458,14 @@ export default function Home() {
                             type="text"
                             value={sec.title}
                             onChange={(e) => handleUpdateSection(sec.id, { title: e.target.value })}
-                            style={{ fontSize: '16px', fontWeight: 'bold', width: '100%', border: 'none', background: 'transparent', borderBottom: '1px solid #ddd', paddingBottom: '4px' }}
+                            style={{ fontSize: '17px', fontWeight: '800', color: '#1E3A8A', width: '100%', border: 'none', background: 'transparent', borderBottom: '1px dashed #94a3b8', paddingBottom: '4px' }}
                           />
                           <input
                             type="text"
                             value={sec.instructions}
                             onChange={(e) => handleUpdateSection(sec.id, { instructions: e.target.value })}
                             placeholder="Section instructions..."
-                            style={{ fontSize: '13px', color: '#555', width: '100%', border: 'none', background: 'transparent', marginTop: '6px', fontStyle: 'italic' }}
+                            style={{ fontSize: '13px', color: '#475569', width: '100%', border: 'none', background: 'transparent', marginTop: '6px', fontStyle: 'italic' }}
                           />
                         </div>
 
@@ -463,7 +475,7 @@ export default function Home() {
                             title="Move Up"
                             disabled={secIdx === 0}
                             onClick={() => handleMoveSection(secIdx, 'up')}
-                            style={{ padding: '6px', borderRadius: '4px', border: 'none', background: '#e0e0e0', cursor: secIdx === 0 ? 'not-allowed' : 'pointer', opacity: secIdx === 0 ? 0.4 : 1 }}
+                            style={{ padding: '6px', borderRadius: '6px', border: 'none', background: '#e2e8f0', cursor: secIdx === 0 ? 'not-allowed' : 'pointer', opacity: secIdx === 0 ? 0.4 : 1 }}
                           >
                             <ArrowUp size={14} />
                           </button>
@@ -471,21 +483,21 @@ export default function Home() {
                             title="Move Down"
                             disabled={secIdx === sections.length - 1}
                             onClick={() => handleMoveSection(secIdx, 'down')}
-                            style={{ padding: '6px', borderRadius: '4px', border: 'none', background: '#e0e0e0', cursor: secIdx === sections.length - 1 ? 'not-allowed' : 'pointer', opacity: secIdx === sections.length - 1 ? 0.4 : 1 }}
+                            style={{ padding: '6px', borderRadius: '6px', border: 'none', background: '#e2e8f0', cursor: secIdx === sections.length - 1 ? 'not-allowed' : 'pointer', opacity: secIdx === sections.length - 1 ? 0.4 : 1 }}
                           >
                             <ArrowDown size={14} />
                           </button>
                           <button
                             title="Add Question"
                             onClick={() => handleAddQuestion(sec.id)}
-                            style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', background: '#007AFF', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#1E3A8A', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                           >
                             <Plus size={14} /> Question
                           </button>
                           <button
                             title="Delete Section"
                             onClick={() => handleDeleteSection(sec.id)}
-                            style={{ padding: '6px', borderRadius: '4px', border: 'none', background: '#ff3b30', color: '#fff', cursor: 'pointer' }}
+                            style={{ padding: '6px', borderRadius: '6px', border: 'none', background: '#D32F2F', color: '#fff', cursor: 'pointer' }}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -494,27 +506,27 @@ export default function Home() {
 
                       {/* Questions List */}
                       {sec.questions.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontSize: '13px', fontStyle: 'italic', border: '1px dashed #e0e0e0', borderRadius: '6px' }}>
-                          No questions in this section yet. Click "Generate Quiz" in the sidebar or "+ Question" above.
+                        <div style={{ textAlign: 'center', padding: '16px', color: '#64748B', fontSize: '13px', fontStyle: 'italic', border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
+                          No questions in this section yet. Click "Add to Section" in the sidebar or "+ Question" above.
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
                           {sec.questions.map((q, qIdx) => (
-                            <div key={q.id || qIdx} style={{ fontSize: '15px', background: '#fff', padding: '12px', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <div key={q.id || qIdx} style={{ fontSize: '15px', background: 'rgba(255,255,255,0.85)', padding: '12px 14px', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                <span style={{ fontWeight: 'bold' }}>{qIdx + 1}.</span>
+                                <span style={{ fontWeight: 'bold', color: '#1E3A8A' }}>{qIdx + 1}.</span>
                                 <input
                                   type="text"
                                   value={q.text}
                                   onChange={(e) => handleUpdateQuestion(sec.id, q.id, e.target.value)}
-                                  style={{ flex: 1, border: 'none', background: 'transparent', borderBottom: '1px dotted #ccc', fontSize: '15px' }}
+                                  style={{ flex: 1, border: 'none', background: 'transparent', borderBottom: '1px dotted #cbd5e1', fontSize: '15px', color: '#1e293b' }}
                                 />
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteQuestion(sec.id, q.id);
                                   }}
-                                  style={{ border: 'none', background: 'transparent', color: '#ff3b30', cursor: 'pointer', padding: '2px' }}
+                                  style={{ border: 'none', background: 'transparent', color: '#D32F2F', cursor: 'pointer', padding: '2px' }}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -524,23 +536,23 @@ export default function Home() {
                               {q.options && q.options.length > 0 && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingLeft: '24px', marginTop: '8px' }}>
                                   {q.options.map((opt, i) => (
-                                    <div key={i} style={{ fontSize: '14px', color: '#333' }}>{String.fromCharCode(65 + i)}. {opt}</div>
+                                    <div key={i} style={{ fontSize: '14px', color: '#334155' }}>{String.fromCharCode(65 + i)}. {opt}</div>
                                   ))}
                                 </div>
                               )}
                               {sec.type === 'True or False' && (
-                                <div style={{ display: 'flex', gap: '24px', paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#555' }}>
+                                <div style={{ display: 'flex', gap: '24px', paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
                                   <div>___ True</div>
                                   <div>___ False</div>
                                 </div>
                               )}
                               {(sec.type === 'Identification' || sec.type === 'Problem Solving') && (
-                                <div style={{ paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#555' }}>
+                                <div style={{ paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
                                   Answer: ________________________________________
                                 </div>
                               )}
                               {sec.type === 'Essay' && (
-                                <div style={{ paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#555' }}>
+                                <div style={{ paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
                                   ____________________________________________________________________<br />
                                   ____________________________________________________________________
                                 </div>
@@ -557,25 +569,25 @@ export default function Home() {
           </div>
 
           {/* Section Builder Bar */}
-          <div className="neu-flat" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#555' }}>
+          <div className="neu-flat" style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>
               + ADD NEW SECTION TO WORKSHEET
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <button className="neu-button" onClick={() => handleAddSection('Multiple Choice')}>
-                <Plus size={16} /> Part: Multiple Choice
+                <Plus size={15} /> Part: Multiple Choice
               </button>
               <button className="neu-button" onClick={() => handleAddSection('True or False')}>
-                <Plus size={16} /> Part: True or False
+                <Plus size={15} /> Part: True or False
               </button>
               <button className="neu-button" onClick={() => handleAddSection('Identification')}>
-                <Plus size={16} /> Part: Identification
+                <Plus size={15} /> Part: Identification
               </button>
               <button className="neu-button" onClick={() => handleAddSection('Problem Solving')}>
-                <Plus size={16} /> Part: Problem Solving
+                <Plus size={15} /> Part: Problem Solving
               </button>
               <button className="neu-button" onClick={() => handleAddSection('Essay')}>
-                <Plus size={16} /> Part: Essay
+                <Plus size={15} /> Part: Essay
               </button>
             </div>
           </div>

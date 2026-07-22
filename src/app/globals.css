@@ -1,21 +1,25 @@
 :root {
-  --bg-color: #E6EAF1;
-  --bg-color-hover: #F0F4F9;
-  --text-main: #2D3748;
+  --bg-color: #E8E3D9;              /* Warm Desk Clay Base */
+  --bg-color-hover: #F2EDE4;
+  --text-main: #2D3748;             /* Graphite Pencil Text */
   --text-muted: #718096;
-  --accent-color: #4F46E5; /* Indigo */
-  --accent-color-hover: #4338CA;
-  --accent-gradient: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
-  --shadow-light: #ffffff;
-  --shadow-dark: #b8c5d6;
+  --accent-color: #1E3A8A;           /* Fountain Pen Navy Ink */
+  --accent-color-hover: #1E40AF;
+  --accent-gradient: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+  --shadow-light: #FFFFFF;          /* 3D Soft Light Bounce */
+  --shadow-dark: #C4BCAE;           /* 3D Soft Bevel Shadow */
   --border-radius: 16px;
-  --border-radius-sm: 8px;
+  --border-radius-sm: 10px;
   --border-radius-lg: 24px;
-  
-  --color-success: #38A169;
-  --color-danger: #E53E3E;
-  --color-warning: #D69E2E;
-  --color-info: #3182CE;
+
+  --paper-tint: #FDFBF7;            /* Authentic Ivory Notebook Paper */
+  --notebook-line: rgba(64, 112, 196, 0.08); /* Blue Notebook Ruling */
+  --notebook-margin: rgba(224, 75, 75, 0.45); /* Red Margin Line */
+
+  --color-success: #2E7D32;
+  --color-danger: #D32F2F;
+  --color-warning: #ED6C02;
+  --color-info: #0288D1;
 }
 
 * {
@@ -27,48 +31,50 @@
 body {
   background-color: var(--bg-color);
   color: var(--text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-/* Neumorphic Utilities */
+/* Neumorphic 3D Utilities */
 .neu-flat {
   background: var(--bg-color);
   box-shadow: 
-    6px 6px 12px var(--shadow-dark),
-    -6px -6px 12px var(--shadow-light);
+    6px 6px 14px var(--shadow-dark),
+    -6px -6px 14px var(--shadow-light);
   border-radius: var(--border-radius);
   transition: all 0.2s ease-in-out;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .neu-flat:hover {
   box-shadow: 
-    8px 8px 16px var(--shadow-dark),
-    -8px -8px 16px var(--shadow-light);
+    8px 8px 18px var(--shadow-dark),
+    -8px -8px 18px var(--shadow-light);
 }
 
 .neu-pressed {
   background: var(--bg-color);
   box-shadow: 
-    inset 6px 6px 12px var(--shadow-dark),
-    inset -6px -6px 12px var(--shadow-light);
+    inset 5px 5px 10px var(--shadow-dark),
+    inset -5px -5px 10px var(--shadow-light);
   border-radius: var(--border-radius);
 }
 
 .neu-button {
   background: var(--bg-color);
   color: var(--text-main);
-  border: none;
-  padding: 10px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 10px 18px;
   font-size: 14px;
   font-weight: 600;
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   box-shadow: 
-    4px 4px 8px var(--shadow-dark),
-    -4px -4px 8px var(--shadow-light);
+    4px 4px 10px var(--shadow-dark),
+    -4px -4px 10px var(--shadow-light);
   transition: all 0.15s ease;
   display: flex;
   align-items: center;
@@ -78,35 +84,17 @@ body {
 
 .neu-button:hover {
   box-shadow: 
-    6px 6px 12px var(--shadow-dark),
-    -6px -6px 12px var(--shadow-light);
+    6px 6px 14px var(--shadow-dark),
+    -6px -6px 14px var(--shadow-light);
   transform: translateY(-1px);
+  color: var(--accent-color);
 }
 
 .neu-button:active {
   box-shadow: 
-    inset 4px 4px 8px var(--shadow-dark),
-    inset -4px -4px 8px var(--shadow-light);
+    inset 3px 3px 6px var(--shadow-dark),
+    inset -3px -3px 6px var(--shadow-light);
   transform: translateY(1px);
-}
-
-.neu-button-primary {
-  background: var(--accent-gradient);
-  color: white;
-  box-shadow: 
-    4px 4px 12px rgba(118, 75, 162, 0.3),
-    -4px -4px 8px var(--shadow-light);
-}
-
-.neu-button-primary:hover {
-  box-shadow: 
-    6px 6px 16px rgba(118, 75, 162, 0.4),
-    -4px -4px 10px var(--shadow-light);
-}
-
-.neu-button-primary:active {
-  box-shadow: 
-    inset 2px 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .neu-input {
@@ -114,6 +102,7 @@ body {
   border: none;
   padding: 12px 16px;
   font-size: 14px;
+  font-family: 'Outfit', sans-serif;
   border-radius: var(--border-radius-sm);
   color: var(--text-main);
   box-shadow: 
@@ -126,9 +115,9 @@ body {
 
 .neu-input:focus {
   box-shadow: 
-    inset 6px 6px 10px var(--shadow-dark),
-    inset -6px -6px 10px var(--shadow-light);
-  border: 1px solid rgba(118, 75, 162, 0.2);
+    inset 5px 5px 10px var(--shadow-dark),
+    inset -5px -5px 10px var(--shadow-light);
+  border: 1px solid rgba(30, 58, 138, 0.3);
 }
 
 .neu-input::placeholder {
@@ -144,8 +133,8 @@ body {
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   box-shadow: 
-    4px 4px 8px var(--shadow-dark),
-    -4px -4px 8px var(--shadow-light);
+    4px 4px 10px var(--shadow-dark),
+    -4px -4px 10px var(--shadow-light);
   transition: all 0.15s ease;
   display: flex;
   align-items: center;
@@ -155,51 +144,64 @@ body {
 .neu-button-solid:hover {
   transform: translateY(-1px);
   box-shadow: 
-    6px 6px 12px var(--shadow-dark),
-    -6px -6px 12px var(--shadow-light);
+    6px 6px 14px var(--shadow-dark),
+    -6px -6px 14px var(--shadow-light);
 }
 .neu-button-solid:active {
   transform: translateY(1px);
-  box-shadow: inset 0px 2px 4px rgba(0,0,0,0.2);
+  box-shadow: inset 0px 2px 4px rgba(0,0,0,0.25);
 }
 
-.bg-ios-blue { background-color: #007AFF; }
-.bg-ios-blue:hover { background-color: #006ce4; }
+.bg-ios-blue { background-color: #1E3A8A; }
+.bg-ios-blue:hover { background-color: #1b337a; }
 
-.bg-ios-green { background-color: #34C759; }
-.bg-ios-green:hover { background-color: #2eb44f; }
+.bg-ios-green { background-color: #2E7D32; }
+.bg-ios-green:hover { background-color: #266b2a; }
 
-.bg-ios-red { background-color: #FF3B30; }
-.bg-ios-red:hover { background-color: #e5352b; }
+.bg-ios-red { background-color: #D32F2F; }
+.bg-ios-red:hover { background-color: #b72525; }
 
-.bg-ios-orange { background-color: #FF9500; }
-.bg-ios-orange:hover { background-color: #e58600; }
+.bg-ios-orange { background-color: #ED6C02; }
+.bg-ios-orange:hover { background-color: #d15f00; }
 
-.bg-ios-gray { background-color: #8E8E93; }
-.bg-ios-gray:hover { background-color: #808084; }
+.bg-ios-gray { background-color: #64748B; }
+.bg-ios-gray:hover { background-color: #475569; }
 
-.text-gradient {
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Notebook Paper Aesthetic */
+.notebook-paper {
+  background-color: var(--paper-tint);
+  background-image: repeating-linear-gradient(
+    transparent,
+    transparent 29px,
+    var(--notebook-line) 30px
+  );
+  border-left: 3px double var(--notebook-margin);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+  position: relative;
 }
 
-/* Specific Layout Classes */
+/* Handwritten Font Accents */
+.handwritten {
+  font-family: 'Caveat', cursive;
+}
+
+/* Layout Dimensions */
 .dashboard-container {
   display: flex;
   height: 100vh;
-  padding: 24px;
-  gap: 24px;
+  padding: 20px;
+  gap: 20px;
   overflow: hidden;
 }
 
 .sidebar {
-  width: 320px;
+  width: 340px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   overflow-y: auto;
   padding: 20px;
 }
@@ -208,12 +210,12 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   height: 100%;
 }
 
 .topbar {
-  height: 70px;
+  height: 65px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -222,7 +224,7 @@ body {
 
 .preview-area {
   flex: 1;
-  padding: 24px;
+  padding: 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -232,22 +234,22 @@ body {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .form-group label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
-/* Scrollbar customization */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
