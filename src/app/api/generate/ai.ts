@@ -122,10 +122,13 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
         return azure(modelName);
       }
 
-      // Azure AI Foundry / OpenAI-compatible endpoint
+      // Azure AI Foundry / OpenAI-compatible endpoint with explicit api-key header
       const openaiAzure = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
+        headers: {
+          'api-key': apiKey,
+        },
       });
       return openaiAzure(modelName);
     }
@@ -232,26 +235,35 @@ STRICT ALIGNMENT & FORMATTING RULES:
   const modelTimeoutMs = getModelTimeoutMs(params.count);
 
   for (let i = 0; i < languageModels.length; i++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), modelTimeoutMs);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), modelTimeoutMs);
 
-    try {
-      const response = await generateObject({
-        model: languageModels[i],
-        schema: schema,
-        prompt: prompt,
-        temperature: 0.2,
-        abortSignal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      object = response.object as GeneratedQuestionsObject;
-      break;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      const modelConfig = modelConfigs[i];
-      console.warn(`AI model ${modelConfig.providerName}:${modelConfig.modelName} failed or timed out after ${modelTimeoutMs}ms. Trying fallback...`, error);
-      lastError = error;
+      try {
+        const response = await generateObject({
+          model: languageModels[i],
+          schema: schema,
+          prompt: prompt,
+          temperature: 0.2,
+          abortSignal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        object = response.object as GeneratedQuestionsObject;
+        break;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        const modelConfig = modelConfigs[i];
+        console.warn(`AI model ${modelConfig.providerName}:${modelConfig.modelName} (attempt ${attempt}/2) failed: ${getErrorMessage(error)}`);
+        lastError = error;
+
+        // If timed out on attempt 1, try 1 automatic retry
+        if (attempt === 1) {
+          continue;
+        }
+        break;
+      }
     }
+    if (object?.questions) break;
   }
 
   if (!object || !object.questions) {
