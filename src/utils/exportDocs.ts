@@ -39,7 +39,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
       new TableCell({
         borders: noBorder,
         verticalAlign: VerticalAlign.CENTER,
-        width: { size: 55, type: WidthType.PERCENTAGE },
+        width: { size: 1250, type: WidthType.DXA },
         children: [
           new Paragraph({
             alignment: AlignmentType.LEFT,
@@ -64,7 +64,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
       new TableCell({
         borders: noBorder,
         verticalAlign: VerticalAlign.CENTER,
-        width: { size: 45, type: WidthType.PERCENTAGE },
+        width: { size: 850, type: WidthType.DXA },
         children: [
           new Paragraph({
             alignment: AlignmentType.LEFT,
@@ -85,7 +85,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
   }
 
   const logosSubTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: 2100, type: WidthType.DXA },
     borders: noBorder,
     rows: [
       new TableRow({
