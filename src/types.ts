@@ -1,8 +1,10 @@
 export interface Question {
   id: string;
+  type?: string;
   text: string;
   options?: string[];
   correctAnswer?: number;
+  answer?: string;
 }
 
 export interface Section {

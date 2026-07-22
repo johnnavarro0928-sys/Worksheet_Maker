@@ -21,7 +21,9 @@ export async function POST(req: Request) {
       type: type || 'Multiple Choice',
       text: q.text,
       options: q.options,
-      answer: q.options ? q.options[q.correctAnswer] : (q.correctAnswer === 0 ? 'True' : 'False')
+      answer: q.options && typeof q.correctAnswer === 'number' 
+        ? q.options[q.correctAnswer] 
+        : (q.correctAnswer === 0 ? 'True' : 'False')
     }));
 
     return NextResponse.json({ questions: formattedQuestions });

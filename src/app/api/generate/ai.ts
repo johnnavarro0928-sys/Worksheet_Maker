@@ -4,13 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { generateObject, LanguageModel } from 'ai';
-
-export interface Question {
-  id: string;
-  text: string;
-  options: string[];
-  correctAnswer: number;
-}
+import { Question } from '../../../types';
 
 export interface QuizParams {
   topic: string; 
@@ -20,14 +14,6 @@ export interface QuizParams {
   type: string; 
   count: number;
 }
-
-const quizSchema = z.object({
-  questions: z.array(z.object({
-    text: z.string().describe("The question text"),
-    options: z.array(z.string()).length(4).describe("Four possible answers"),
-    correctAnswer: z.number().min(0).max(3).describe("The index of the correct answer (0-3)")
-  }))
-});
 
 function getProviderModel(providerName: string, modelName: string): LanguageModel {
   switch (providerName) {
@@ -55,12 +41,42 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
   }
 }
 
+function getSchemaForType(type: string) {
+  switch (type) {
+    case 'True or False':
+      return z.object({
+        questions: z.array(z.object({
+          text: z.string().describe("The true/false statement"),
+          correctAnswer: z.number().min(0).max(1).describe("0 for True, 1 for False")
+        }))
+      });
+    case 'Identification':
+    case 'Problem Solving':
+    case 'Essay':
+      return z.object({
+        questions: z.array(z.object({
+          text: z.string().describe("The question or problem prompt")
+        }))
+      });
+    case 'Multiple Choice':
+    default:
+      return z.object({
+        questions: z.array(z.object({
+          text: z.string().describe("The question text"),
+          options: z.array(z.string()).length(4).describe("Four possible answers"),
+          correctAnswer: z.number().min(0).max(3).describe("The index of the correct answer (0-3)")
+        }))
+      });
+  }
+}
+
 export async function generateQuizQuestions(params: QuizParams): Promise<Question[]> {
   if (params.topic === 'MOCK_TEST') {
     return Array.from({ length: params.count }).map((_, i) => ({
       id: `mock-${i}`,
+      type: params.type,
       text: `Mock Question ${i + 1} for ${params.subject}?`,
-      options: ['Option A', 'Option B', 'Option C', 'Option D'],
+      options: params.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
       correctAnswer: 0
     }));
   }
@@ -72,44 +88,41 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
   const providerNames = providersStr.split(',').map(s => s.trim());
   const modelNames = modelsStr.split(',').map(s => s.trim());
 
-  // Instantiate an array of LanguageModels based on the parsed strings
   const languageModels: LanguageModel[] = modelNames.map((modelName, index) => {
-    // If only one provider is given but multiple models, reuse the first provider
     const providerName = providerNames[index] || providerNames[0]; 
     return getProviderModel(providerName, modelName);
   });
 
-  const prompt = `Generate a ${params.type} quiz about ${params.topic} for grade ${params.grade} students.
-  Subject: ${params.subject}
-  Difficulty: ${params.difficulty}
-  Number of questions: ${params.count}`;
+  const schema = getSchemaForType(params.type);
+  const prompt = `Generate a ${params.type} test with ${params.count} questions about "${params.topic}" for ${params.grade} ${params.subject} students. Difficulty: ${params.difficulty}.`;
 
-  let object;
-  let lastError;
+  let object: any;
+  let lastError: any;
 
   for (let i = 0; i < languageModels.length; i++) {
     try {
       const response = await generateObject({
         model: languageModels[i],
-        schema: quizSchema,
+        schema: schema,
         prompt: prompt,
       });
       object = response.object;
-      break; // Success! Break out of the fallback loop
+      break;
     } catch (error) {
-      console.warn(`Model at index ${i} failed. Trying next...`, error);
+      console.warn(`AI Model at index ${i} failed. Trying fallback...`, error);
       lastError = error;
     }
   }
 
-  if (!object) {
-    throw new Error(`All ${languageModels.length} configured AI models failed. Last error: ${lastError}`);
+  if (!object || !object.questions) {
+    throw new Error(`All ${languageModels.length} configured AI models failed to generate questions. Error: ${lastError?.message || lastError}`);
   }
 
-  return object.questions.map((q, i) => ({
+  return object.questions.map((q: any, i: number) => ({
     id: `q-${Date.now()}-${i}`,
+    type: params.type,
     text: q.text,
-    options: q.options,
-    correctAnswer: q.correctAnswer
+    options: q.options || undefined,
+    correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined
   }));
 }

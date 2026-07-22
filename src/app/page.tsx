@@ -85,13 +85,13 @@ export default function Home() {
     newSections[index] = newSections[targetIndex];
     newSections[targetIndex] = temp;
 
-    // Update Part titles with Roman Numerals
+    // Update Part titles with Roman Numerals while preserving custom subtitles
     const renumbered = newSections.map((sec, idx) => {
       const roman = ROMAN_NUMERALS[idx] || `${idx + 1}`;
-      const typePart = sec.title.includes('.') ? sec.title.split('.').slice(1).join('.').trim() : sec.type.toUpperCase();
+      const subtitle = sec.title.includes('.') ? sec.title.split('.').slice(1).join('.').trim() : sec.title.replace(/^PART\s+[I|V|X\d]+\s*/i, '').trim() || sec.type.toUpperCase();
       return {
         ...sec,
-        title: `PART ${roman}. ${typePart}`
+        title: `PART ${roman}. ${subtitle}`
       };
     });
 
@@ -182,6 +182,12 @@ export default function Home() {
         body: JSON.stringify(generateConfig)
       });
 
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Generation Error (${res.status}): ${errorData.error || res.statusText || 'Failed to generate questions'}`);
+        return;
+      }
+
       const data = await res.json();
       if (data.questions && data.questions.length > 0) {
         setSections((prev) =>
@@ -192,10 +198,10 @@ export default function Home() {
           )
         );
       } else {
-        alert("Failed to generate questions. " + (data.error || ""));
+        alert("No questions returned from generator.");
       }
-    } catch (e) {
-      alert("Error calling generator.");
+    } catch (e: any) {
+      alert("Network error: Unable to connect to generator API.");
     } finally {
       setIsGenerating(false);
     }
