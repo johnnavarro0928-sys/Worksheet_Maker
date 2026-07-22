@@ -660,6 +660,11 @@ export default function Home() {
         </section>
       </main>
 
+      {/* Dynamic Copyright Footer */}
+      <footer style={{ width: '100%', textAlign: 'center', padding: '16px 0 8px 0', fontSize: '13px', color: '#64748B', fontWeight: '500' }}>
+        Copyright © {new Date().getFullYear()} Sayuna AI. All rights reserved.
+      </footer>
+
       {/* Animation Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes spin {
