@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Worksheet Maker - Notebook Edition",
   description: "Create premium quizzes and worksheets with 3D Neumorphic Notebook aesthetics",
+  icons: {
+    icon: "/images/sayuna_logo.png",
+    shortcut: "/images/sayuna_logo.png",
+    apple: "/images/sayuna_logo.png",
+  }
 };
 
 export default function RootLayout({

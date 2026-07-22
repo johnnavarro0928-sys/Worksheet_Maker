@@ -218,8 +218,9 @@ export default function Home() {
       {/* 3D Neumorphic Sidebar */}
       <aside className="sidebar neu-flat">
         <div style={{ padding: '0 5px', marginBottom: '4px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-color)' }}>
-            <PencilRuler size={22} /> WORKSHEET MAKER
+          <h2 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)' }}>
+            <img src="/images/sayuna_logo.png" alt="Sayuna Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+            WORKSHEET MAKER
           </h2>
           {activeSection && (
             <div className="handwritten" style={{ fontSize: '15px', color: '#1E3A8A', marginTop: '4px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
