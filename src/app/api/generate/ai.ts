@@ -43,14 +43,22 @@ export interface QuizParams {
   count: number;
 }
 
-function getModelTimeoutMs(): number {
+function getModelTimeoutMs(count?: number): number {
   const parsed = Number.parseInt(process.env.AI_MODEL_TIMEOUT_MS || '', 10);
-  if (!Number.isFinite(parsed)) return DEFAULT_MODEL_TIMEOUT_MS;
-  return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
+  if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
+  
+  // Dynamic scaling: 35s base + 2.5s per question item, capped at 60s
+  const calculated = 35000 + (Math.max(1, count || 5) * 2500);
+  return Math.min(MAX_MODEL_TIMEOUT_MS, calculated);
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    if (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted')) {
+      return 'The AI request timed out before completing. Please try generating fewer items or retry.';
+    }
+    return error.message;
+  }
   if (typeof error === 'string') return error;
   return String(error || 'unknown_error');
 }
@@ -221,7 +229,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
 
   let object: GeneratedQuestionsObject | undefined;
   let lastError: unknown;
-  const modelTimeoutMs = getModelTimeoutMs();
+  const modelTimeoutMs = getModelTimeoutMs(params.count);
 
   for (let i = 0; i < languageModels.length; i++) {
     const controller = new AbortController();
@@ -232,7 +240,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
         model: languageModels[i],
         schema: schema,
         prompt: prompt,
-        temperature: 0.3,
+        temperature: 0.2,
         abortSignal: controller.signal,
       });
       clearTimeout(timeoutId);
