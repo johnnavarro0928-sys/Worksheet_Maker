@@ -20,6 +20,7 @@ export default function Home() {
   const [generateConfig, setGenerateConfig] = useState({
     topic: "",
     competency: "",
+    objective: "",
     grade: "Grade 10",
     subject: "Science",
     type: "Multiple Choice",
@@ -237,13 +238,24 @@ export default function Home() {
         </div>
 
         <div className="form-group">
-          <label>Learning Competency</label>
+          <label>Learning Competency <span style={{ fontSize: '11px', opacity: 0.6 }}>(Optional)</span></label>
           <input
             type="text"
             className="neu-input"
             placeholder="e.g. Identify planets..."
             value={generateConfig.competency}
             onChange={(e) => setGenerateConfig({ ...generateConfig, competency: e.target.value })}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Specific Objectives <span style={{ fontSize: '11px', opacity: 0.6 }}>(Optional)</span></label>
+          <input
+            type="text"
+            className="neu-input"
+            placeholder="e.g. Name inner vs outer planets..."
+            value={generateConfig.objective}
+            onChange={(e) => setGenerateConfig({ ...generateConfig, objective: e.target.value })}
           />
         </div>
 
