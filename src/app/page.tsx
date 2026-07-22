@@ -193,10 +193,18 @@ export default function Home() {
 
       const data = await res.json();
       if (data.questions && data.questions.length > 0) {
+        const cleanedQuestions = data.questions.map((q: any) => {
+          let cleanText = (q.text || "").trim();
+          while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
+            cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
+          }
+          return { ...q, text: cleanText };
+        });
+
         setSections((prev) =>
           prev.map((s) =>
             s.id === activeSectionId
-              ? { ...s, questions: [...s.questions, ...data.questions] }
+              ? { ...s, questions: [...s.questions, ...cleanedQuestions] }
               : s
           )
         );

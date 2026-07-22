@@ -157,7 +157,8 @@ STRICT ALIGNMENT & FORMATTING RULES:
 1. Every question MUST strictly evaluate the specified Learning Competency and Specific Objective at the exact ${params.difficulty} cognitive depth for ${params.grade}.
 2. Distractor choices for Multiple Choice MUST be plausible and educationally meaningful, avoiding obvious filler options.
 3. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
-4. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.`;
+4. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
+5. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
 
   let object: any;
   let lastError: any;
@@ -181,11 +182,17 @@ STRICT ALIGNMENT & FORMATTING RULES:
     throw new Error(`All ${languageModels.length} configured AI models failed to generate questions. Error: ${lastError?.message || lastError}`);
   }
 
-  return object.questions.map((q: any, i: number) => ({
-    id: `q-${Date.now()}-${i}`,
-    type: params.type,
-    text: formatFormula(q.text),
-    options: q.options ? q.options.map((opt: string) => formatFormula(opt)) : undefined,
-    correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined
-  }));
+  return object.questions.map((q: any, i: number) => {
+    let cleanText = (q.text || "").trim();
+    while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
+      cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
+    }
+    return {
+      id: `q-${Date.now()}-${i}`,
+      type: params.type,
+      text: formatFormula(cleanText),
+      options: q.options ? q.options.map((opt: string) => formatFormula(opt)) : undefined,
+      correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined
+    };
+  });
 }

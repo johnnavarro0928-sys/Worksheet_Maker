@@ -197,8 +197,13 @@ export const generateDocx = async (quizData: WorksheetData) => {
     );
 
     (sec.questions || []).forEach((q, i) => {
+      let cleanText = (q.text || "").trim();
+      while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
+        cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
+      }
+
       const qChildren: TextRun[] = [
-        new TextRun({ text: `${i + 1}. ${q.text}`, bold: true })
+        new TextRun({ text: `${i + 1}. ${cleanText}`, bold: true })
       ];
 
       if (q.options && q.options.length > 0) {
