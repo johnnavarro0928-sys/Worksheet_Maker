@@ -22,37 +22,6 @@ export const generateDocx = async (quizData: WorksheetData) => {
     getImageBuffer('/images/logo_deped_seal.png')
   ]);
 
-  const children: (Paragraph | Table)[] = [];
-
-  // Build Header Table with Logos on Upper Left
-  const logoChildren: ImageRun[] = [];
-
-  if (matatagBuffer) {
-    logoChildren.push(
-      new ImageRun({
-        data: matatagBuffer,
-        type: "png",
-        transformation: {
-          width: cmToPx(2.03), // 2.03 cm width
-          height: cmToPx(1.07) // 1.07 cm height
-        }
-      })
-    );
-  }
-
-  if (sealBuffer) {
-    logoChildren.push(
-      new ImageRun({
-        data: sealBuffer,
-        type: "png",
-        transformation: {
-          width: cmToPx(1.38), // 1.38 cm width
-          height: cmToPx(1.38) // 1.38 cm height
-        }
-      })
-    );
-  }
-
   const noBorder = {
     top: { style: BorderStyle.NONE, size: 0, color: "auto" },
     bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
@@ -62,23 +31,83 @@ export const generateDocx = async (quizData: WorksheetData) => {
     insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
   };
 
+  // Build a 2-cell nested table for the logos so Microsoft Word vertically centers their midpoints
+  const logoCells: TableCell[] = [];
+
+  if (matatagBuffer) {
+    logoCells.push(
+      new TableCell({
+        borders: noBorder,
+        verticalAlign: VerticalAlign.CENTER,
+        width: { size: 55, type: WidthType.PERCENTAGE },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [
+              new ImageRun({
+                data: matatagBuffer,
+                type: "png",
+                transformation: {
+                  width: cmToPx(2.03), // 2.03 cm width
+                  height: cmToPx(1.07) // 1.07 cm height
+                }
+              })
+            ]
+          })
+        ]
+      })
+    );
+  }
+
+  if (sealBuffer) {
+    logoCells.push(
+      new TableCell({
+        borders: noBorder,
+        verticalAlign: VerticalAlign.CENTER,
+        width: { size: 45, type: WidthType.PERCENTAGE },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [
+              new ImageRun({
+                data: sealBuffer,
+                type: "png",
+                transformation: {
+                  width: cmToPx(1.38), // 1.38 cm width
+                  height: cmToPx(1.38) // 1.38 cm height
+                }
+              })
+            ]
+          })
+        ]
+      })
+    );
+  }
+
+  const logosSubTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noBorder,
+    rows: [
+      new TableRow({
+        children: logoCells
+      })
+    ]
+  });
+
+  const children: (Paragraph | Table)[] = [];
+
   const headerTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: noBorder,
     rows: [
       new TableRow({
         children: [
-          // Left Cell: Upper Left Logos
+          // Left Cell: Nested Logos Subtable (Vertically Centered)
           new TableCell({
-            width: { size: 30, type: WidthType.PERCENTAGE },
+            width: { size: 35, type: WidthType.PERCENTAGE },
             borders: noBorder,
             verticalAlign: VerticalAlign.CENTER,
-            children: [
-              new Paragraph({
-                children: logoChildren,
-                alignment: AlignmentType.LEFT
-              })
-            ]
+            children: [logosSubTable]
           }),
           // Center Cell: School Info & Title
           new TableCell({
@@ -114,7 +143,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
           }),
           // Right Cell: Spacer to keep center balanced
           new TableCell({
-            width: { size: 30, type: WidthType.PERCENTAGE },
+            width: { size: 25, type: WidthType.PERCENTAGE },
             borders: noBorder,
             verticalAlign: VerticalAlign.CENTER,
             children: [new Paragraph({ text: "" })]
