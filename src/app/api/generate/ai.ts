@@ -41,6 +41,7 @@ export interface QuizParams {
   difficulty: string; 
   type: string; 
   count: number;
+  language?: string;
 }
 
 function getModelTimeoutMs(): number {
@@ -203,6 +204,22 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
 
   const schema = getSchemaForType(params.type);
 
+  const outputLang = params.language || 'English';
+  let languageRules = '';
+  if (outputLang === 'Filipino') {
+    languageRules = `OUTPUT LANGUAGE INSTRUCTIONS (FILIPINO):
+- Write ALL generated questions, distractor options, and instructions in natural, grammatically correct classroom Filipino (Tagalog/Wikang Pambansa).
+- Do NOT confuse the subject field (${params.subject}) with the output language. Even if subject is Science, Math, or Araling Panlipunan, the wording of questions and options MUST be in Filipino.
+- Retain standard, universally recognized technical or scientific terms in English only when conventional in Philippine classroom settings (e.g. 'photosynthesis', 'cell membrane', 'x-axis'), but frame sentence structures in proper Filipino.`;
+  } else if (outputLang === 'Bilingual (English-Filipino)' || outputLang === 'English-Filipino bilingual') {
+    languageRules = `OUTPUT LANGUAGE INSTRUCTIONS (BILINGUAL ENGLISH-FILIPINO):
+- Write generated questions and distractor options in a clear, natural English-Filipino bilingual format suitable for Philippine classrooms.
+- Present the primary concept in English with appropriate Filipino translation or clarification context where helpful.`;
+  } else {
+    languageRules = `OUTPUT LANGUAGE INSTRUCTIONS (ENGLISH):
+- Write ALL generated questions and distractor options in clear, standard classroom English.`;
+  }
+
   const prompt = `You are a master curriculum specialist and item writer. Generate a ${params.type} test with ${params.count} questions.
 
 TARGET AUDIENCE & CONTEXT:
@@ -212,6 +229,9 @@ TARGET AUDIENCE & CONTEXT:
 - Learning Competency: ${params.competency || "Standard curriculum alignment for " + params.topic}
 - Specific Objective: ${params.objective || "Standard learning objective for " + params.topic}
 - Target Difficulty Level: ${params.difficulty}
+- Output Language: ${outputLang}
+
+${languageRules}
 
 GRADE-LEVEL COGNITIVE & VOCABULARY ADAPTATION:
 - Kindergarten - Grade 2: Use simple, short, age-appropriate sentences, concrete familiar terms, and direct foundational concepts.

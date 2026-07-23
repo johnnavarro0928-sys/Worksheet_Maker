@@ -25,6 +25,7 @@ export default function Home() {
     objective: "",
     grade: "Grade 10",
     subject: "Science",
+    language: "English",
     type: "Multiple Choice",
     difficulty: "Average",
     count: 5
@@ -54,7 +55,7 @@ export default function Home() {
     const nextIndex = sections.length;
     const roman = ROMAN_NUMERALS[nextIndex] || `${nextIndex + 1}`;
     const newSection: Section = {
-      id: `sec-${Date.now()}`,
+      id: `sec-${nextIndex + 1}`,
       title: `PART ${roman}. ${type.toUpperCase()}`,
       type: type,
       instructions: getDefaultInstructions(type),
@@ -112,7 +113,7 @@ export default function Home() {
     if (!targetSec) return;
 
     const newQ: Question = {
-      id: `q-${Date.now()}`,
+      id: `q-${targetSec.questions.length + 1}`,
       text: "Enter your question text here...",
       options: targetSec.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
       correctAnswer: 0
@@ -207,7 +208,7 @@ export default function Home() {
       const allQuestions = results.flat();
 
       if (allQuestions.length > 0) {
-        const cleanedQuestions = allQuestions.map((q: any) => {
+        const cleanedQuestions = allQuestions.map((q: Question) => {
           let cleanText = (q.text || "").trim();
           while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
             cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
@@ -225,15 +226,15 @@ export default function Home() {
       } else {
         alert("No questions returned from generator.");
       }
-    } catch (e: any) {
-      alert(e.message || "Network error: Unable to connect to generator API.");
+    } catch (e: unknown) {
+      const err = e as Error;
+      alert(err.message || "Network error: Unable to connect to generator API.");
     } finally {
       setIsGenerating(false);
     }
   };
 
   const activeSection = sections.find((s) => s.id === activeSectionId) || sections[0];
-  const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
 
   return (
     <div className="dashboard-container">
@@ -315,6 +316,19 @@ export default function Home() {
               onChange={(e) => setGenerateConfig({ ...generateConfig, subject: e.target.value })}
             />
           </div>
+        </div>
+
+        <div className="form-group">
+          <label>Output Language</label>
+          <select
+            className="neu-input"
+            value={generateConfig.language}
+            onChange={(e) => setGenerateConfig({ ...generateConfig, language: e.target.value })}
+          >
+            <option>English</option>
+            <option>Filipino</option>
+            <option>English-Filipino bilingual</option>
+          </select>
         </div>
 
         <div className="form-group">
@@ -593,7 +607,7 @@ export default function Home() {
                       {/* Questions List */}
                       {sec.questions.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '16px', color: '#64748B', fontSize: '13px', fontStyle: 'italic', border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
-                          No questions in this section yet. Click "Add to Section" in the sidebar or "+ Question" above.
+                          No questions in this section yet. Click &quot;Add to Section&quot; in the sidebar or &quot;+ Question&quot; above.
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>

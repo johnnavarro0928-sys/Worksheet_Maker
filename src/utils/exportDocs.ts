@@ -11,7 +11,7 @@ async function getImageBuffer(url: string): Promise<Uint8Array | null> {
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     return new Uint8Array(buf);
-  } catch (e) {
+  } catch {
     return null;
   }
 }

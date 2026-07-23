@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { topic, competency, objective, grade, subject, type, difficulty, count } = body;
+    const { topic, competency, objective, grade, subject, type, difficulty, count, language, outputLanguage } = body;
 
     const questions = await generateQuizQuestions({
       topic,
@@ -21,7 +21,8 @@ export async function POST(req: Request) {
       subject,
       type,
       difficulty,
-      count: parseInt(count) || 5
+      count: parseInt(count) || 5,
+      language: language || outputLanguage || 'English'
     });
 
     // Map output to the frontend expected format

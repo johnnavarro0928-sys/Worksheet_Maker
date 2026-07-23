@@ -10,7 +10,7 @@ export function formatFormula(text: string): string {
     'n': 'ⁿ', 'x': 'ˣ'
   };
 
-  let result = text.replace(/\^([0-9+\-=()nx]+)/g, (_, match) => {
+  const result = text.replace(/\^([0-9+\-=()nx]+)/g, (_, match) => {
     return match.split('').map((char: string) => superMap[char] || char).join('');
   });
 

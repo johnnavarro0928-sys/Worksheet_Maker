@@ -216,4 +216,73 @@ describe('generateQuizQuestions', () => {
     expect(aiMocks.createModel).toHaveBeenCalledWith('openrouter/slow-model');
     expect(aiMocks.createModel).toHaveBeenCalledWith('google/gemini-2.5-flash:free');
   });
+
+  it('defaults output language to English in prompt when language is omitted', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'Default English Question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Ecosystems',
+      grade: '6',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    });
+
+    const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(calledPrompt).toContain('- Output Language: English');
+    expect(calledPrompt).toContain('OUTPUT LANGUAGE INSTRUCTIONS (ENGLISH)');
+  });
+
+  it('includes explicit Filipino output language instructions when language is Filipino', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'Ano ang sanhi ng lindol?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Mga Lindol',
+      grade: '6',
+      subject: 'Araling Panlipunan',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+      language: 'Filipino',
+    });
+
+    const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(calledPrompt).toContain('- Output Language: Filipino');
+    expect(calledPrompt).toContain('OUTPUT LANGUAGE INSTRUCTIONS (FILIPINO)');
+    expect(calledPrompt).toContain('Wikang Pambansa');
+  });
+
+  it('includes explicit Bilingual output language instructions when language is English-Filipino bilingual', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'What is photosynthesis? (Ano ang fotosintesis?)', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Photosynthesis',
+      grade: '7',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+      language: 'English-Filipino bilingual',
+    });
+
+    const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(calledPrompt).toContain('- Output Language: English-Filipino bilingual');
+    expect(calledPrompt).toContain('OUTPUT LANGUAGE INSTRUCTIONS (BILINGUAL ENGLISH-FILIPINO)');
+  });
 });
