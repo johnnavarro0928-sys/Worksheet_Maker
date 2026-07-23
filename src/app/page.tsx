@@ -7,6 +7,13 @@ import { Question, Section, WorksheetData } from "../types";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
+function createId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
 export default function Home() {
   // Quiz Header State
   const [quizData, setQuizData] = useState({
@@ -55,7 +62,7 @@ export default function Home() {
     const nextIndex = sections.length;
     const roman = ROMAN_NUMERALS[nextIndex] || `${nextIndex + 1}`;
     const newSection: Section = {
-      id: `sec-${nextIndex + 1}`,
+      id: createId('sec'),
       title: `PART ${roman}. ${type.toUpperCase()}`,
       type: type,
       instructions: getDefaultInstructions(type),
@@ -113,7 +120,7 @@ export default function Home() {
     if (!targetSec) return;
 
     const newQ: Question = {
-      id: `q-${targetSec.questions.length + 1}`,
+      id: createId('q'),
       text: "Enter your question text here...",
       options: targetSec.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
       correctAnswer: 0
