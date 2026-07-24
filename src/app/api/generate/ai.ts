@@ -80,16 +80,7 @@ function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttem
   const configs = [...modelConfigs];
   const seen = new Set(configs.map(config => `${config.providerName}:${config.modelName}`));
 
-  if (process.env.OPENROUTER_API_KEY) {
-    for (const modelName of DEFAULT_OPENROUTER_MODELS) {
-      const key = `openrouter:${modelName}`;
-      if (seen.has(key)) continue;
-
-      configs.push({ providerName: 'openrouter', modelName });
-      seen.add(key);
-    }
-  }
-
+  // 1. Alibaba Qwen models (if key present)
   if (process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY) {
     const configuredModel = process.env.ALIBABA_MODEL;
     const alibabaModels = configuredModel ? [configuredModel, ...DEFAULT_ALIBABA_MODELS] : DEFAULT_ALIBABA_MODELS;
@@ -103,6 +94,18 @@ function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttem
     }
   }
 
+  // 2. OpenRouter free models (if key present)
+  if (process.env.OPENROUTER_API_KEY) {
+    for (const modelName of DEFAULT_OPENROUTER_MODELS) {
+      const key = `openrouter:${modelName}`;
+      if (seen.has(key)) continue;
+
+      configs.push({ providerName: 'openrouter', modelName });
+      seen.add(key);
+    }
+  }
+
+  // 3. Paid DeepSeek API (if key present)
   if (process.env.DEEPSEEK_API_KEY) {
     const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     const key = `deepseek:${deepseekModel}`;
@@ -116,8 +119,11 @@ function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttem
 }
 
 function getModelAttemptConfigs(): ModelAttemptConfig[] {
-  const defaultProvider = 'openrouter';
-  const defaultModels = process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODELS.join(',');
+  const hasAlibabaConfig = Boolean(process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY);
+  const defaultProvider = hasAlibabaConfig ? 'alibaba' : 'openrouter';
+  const defaultModels = hasAlibabaConfig
+    ? (process.env.ALIBABA_MODEL || DEFAULT_ALIBABA_MODELS.join(','))
+    : (process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODELS.join(','));
 
   const providersStr = process.env.ACTIVE_AI_PROVIDERS || process.env.ACTIVE_AI_PROVIDER || defaultProvider;
   const modelsStr = process.env.ACTIVE_AI_MODELS || process.env.ACTIVE_AI_MODEL || defaultModels;

@@ -62,7 +62,8 @@ describe('generateQuizQuestions', () => {
     expect(questions[0].id).toContain('mock-');
   });
 
-  it('defaults to OpenRouter provider with DeepSeek fallbacks when no provider is explicitly set', async () => {
+  it('defaults to Alibaba Qwen provider when DASHSCOPE_API_KEY is set', async () => {
+    process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     delete process.env.ACTIVE_AI_PROVIDER;
     delete process.env.ACTIVE_AI_PROVIDERS;
@@ -71,16 +72,16 @@ describe('generateQuizQuestions', () => {
 
     aiMocks.generateObject.mockResolvedValue({
       object: {
-        questions: [{ text: 'Default OpenRouter question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }],
+        questions: [{ text: 'Default Alibaba question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }],
       },
     });
 
     const questions = await generateQuizQuestions({
-      topic: 'Physics', grade: '10', subject: 'Science', difficulty: 'Average', type: 'Multiple Choice', count: 1
+      topic: 'Geology', grade: '10', subject: 'Science', difficulty: 'Average', type: 'Multiple Choice', count: 1
     });
 
     expect(questions).toHaveLength(1);
-    expect(aiMocks.createModel).toHaveBeenCalledWith('google/gemini-2.5-flash:free');
+    expect(aiMocks.createModel).toHaveBeenCalledWith('qwen3.7-plus');
   });
 
   it('honors the configured AI model timeout instead of aborting at 10 seconds', async () => {
