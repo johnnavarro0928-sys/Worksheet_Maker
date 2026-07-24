@@ -82,6 +82,15 @@ function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttem
     }
   }
 
+  if (process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY) {
+    const alibabaModel = process.env.ALIBABA_MODEL || 'qwen-plus';
+    const key = `alibaba:${alibabaModel}`;
+    if (!seen.has(key)) {
+      configs.push({ providerName: 'alibaba', modelName: alibabaModel });
+      seen.add(key);
+    }
+  }
+
   if (process.env.DEEPSEEK_API_KEY) {
     const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     const key = `deepseek:${deepseekModel}`;
@@ -150,6 +159,16 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY required for Anthropic provider');
       const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       return anthropic(modelName);
+    }
+    case 'alibaba':
+    case 'dashscope': {
+      const apiKey = process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY;
+      if (!apiKey) throw new Error('DASHSCOPE_API_KEY or ALIBABA_API_KEY required for Alibaba provider');
+      const alibaba = createOpenAI({
+        baseURL: process.env.ALIBABA_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        apiKey: apiKey,
+      });
+      return alibaba(modelName);
     }
     case 'deepseek': {
       const apiKey = process.env.DEEPSEEK_API_KEY;

@@ -348,4 +348,28 @@ describe('generateQuizQuestions', () => {
 
     expect(questions).toHaveLength(1);
   });
+
+  it('supports Alibaba DashScope Qwen fallback prior to DeepSeek', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
+    process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openrouter';
+    process.env.ACTIVE_AI_MODEL = 'openrouter/model-1';
+
+    // 6 OpenRouter models * 2 attempts = 12 failures
+    for (let i = 0; i < 12; i++) {
+      aiMocks.generateObject.mockRejectedValueOnce(new Error('OpenRouter model busy'));
+    }
+    // Then Alibaba Qwen succeeds
+    aiMocks.generateObject.mockResolvedValueOnce({
+      object: { questions: [{ text: 'Alibaba Qwen Question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Algebra', grade: '8', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 1
+    });
+
+    expect(questions).toHaveLength(1);
+    expect(aiMocks.createModel).toHaveBeenCalledWith('qwen-plus');
+  });
 });
