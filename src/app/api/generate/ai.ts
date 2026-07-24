@@ -12,11 +12,11 @@ const DEFAULT_MODEL_TIMEOUT_MS = 55000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
 const MAX_MODEL_TIMEOUT_MS = 60000;
 const DEFAULT_OPENROUTER_MODELS = [
-  'google/gemini-2.5-flash:free',
+  'openrouter/free',
   'deepseek/deepseek-chat:free',
   'deepseek/deepseek-r1:free',
   'qwen/qwen-2.5-72b-instruct:free',
-  'openrouter/free',
+  'meta-llama/llama-3.3-70b-instruct:free',
 ];
 
 const DEFAULT_ALIBABA_MODELS = [

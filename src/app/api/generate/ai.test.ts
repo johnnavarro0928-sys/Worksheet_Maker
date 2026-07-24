@@ -236,7 +236,7 @@ describe('generateQuizQuestions', () => {
     expect(questions).toHaveLength(1);
     expect(aiMocks.generateObject).toHaveBeenCalledTimes(2);
     expect(aiMocks.createModel).toHaveBeenCalledWith('openrouter/slow-model');
-    expect(aiMocks.createModel).toHaveBeenCalledWith('google/gemini-2.5-flash:free');
+    expect(aiMocks.createModel).toHaveBeenCalledWith('openrouter/free');
   });
 
   it('falls back to paid DeepSeek provider when all OpenRouter models fail or are busy', async () => {
