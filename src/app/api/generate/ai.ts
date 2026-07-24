@@ -8,9 +8,9 @@ import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 
-const DEFAULT_MODEL_TIMEOUT_MS = 55000;
-const MIN_MODEL_TIMEOUT_MS = 5000;
-const MAX_MODEL_TIMEOUT_MS = 60000;
+const DEFAULT_MODEL_TIMEOUT_MS = 15000;
+const MIN_MODEL_TIMEOUT_MS = 3000;
+const MAX_MODEL_TIMEOUT_MS = 30000;
 const DEFAULT_OPENROUTER_MODELS = [
   'openrouter/free',
   'deepseek/deepseek-chat:free',
@@ -302,11 +302,25 @@ STRICT ALIGNMENT & FORMATTING RULES:
   let object: GeneratedQuestionsObject | undefined;
   let lastError: unknown;
   const modelTimeoutMs = getModelTimeoutMs();
+  const startTime = Date.now();
+  const GLOBAL_MAX_TIME_MS = 48000;
 
   for (let i = 0; i < languageModels.length; i++) {
+    if (Date.now() - startTime > GLOBAL_MAX_TIME_MS) {
+      console.warn(`[AI Generator] Reached global generation time budget (${GLOBAL_MAX_TIME_MS}ms). Exiting fallback loop to prevent 504 timeout.`);
+      break;
+    }
     for (let attempt = 1; attempt <= 2; attempt++) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > GLOBAL_MAX_TIME_MS) break;
+
+      const remainingMs = GLOBAL_MAX_TIME_MS - elapsed;
+      const attemptTimeoutMs = Math.min(modelTimeoutMs, remainingMs);
+
+      if (attemptTimeoutMs < 2000) break;
+
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), modelTimeoutMs);
+      const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
       try {
         const response = await generateObject({

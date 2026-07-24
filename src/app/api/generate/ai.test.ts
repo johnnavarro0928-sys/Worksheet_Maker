@@ -155,7 +155,7 @@ describe('generateQuizQuestions', () => {
               ],
             },
           });
-        }, 45000);
+        }, 10000);
       });
     });
 
@@ -169,10 +169,10 @@ describe('generateQuizQuestions', () => {
     });
     void generation.catch(() => undefined);
 
-    await vi.advanceTimersByTimeAsync(30001);
+    await vi.advanceTimersByTimeAsync(8000);
     expect(capturedSignal?.aborted).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(15000);
+    await vi.advanceTimersByTimeAsync(3000);
     await expect(generation).resolves.toHaveLength(1);
   });
 
