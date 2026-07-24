@@ -176,8 +176,9 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
     case 'dashscope': {
       const apiKey = process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY;
       if (!apiKey) throw new Error('DASHSCOPE_API_KEY or ALIBABA_API_KEY required for Alibaba provider');
+      const baseURL = process.env.ALIBABA_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
       const alibaba = createOpenAI({
-        baseURL: process.env.ALIBABA_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        baseURL: baseURL,
         apiKey: apiKey,
       });
       return alibaba(modelName);
@@ -185,8 +186,9 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
     case 'deepseek': {
       const apiKey = process.env.DEEPSEEK_API_KEY;
       if (!apiKey) throw new Error('DEEPSEEK_API_KEY required for DeepSeek provider');
+      const baseURL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
       const deepseek = createOpenAI({
-        baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+        baseURL: baseURL,
         apiKey: apiKey,
       });
       return deepseek(modelName);
