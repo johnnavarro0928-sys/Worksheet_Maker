@@ -246,7 +246,6 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
   }
 
   const modelConfigs = getModelAttemptConfigs();
-  const languageModels: LanguageModel[] = modelConfigs.map(config => getProviderModel(config.providerName, config.modelName));
 
   const schema = getSchemaForType(params.type);
 
@@ -304,7 +303,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
   const startTime = Date.now();
   const GLOBAL_MAX_TIME_MS = 52000;
 
-  for (let i = 0; i < languageModels.length; i++) {
+  for (let i = 0; i < modelConfigs.length; i++) {
     const elapsed = Date.now() - startTime;
     if (elapsed > GLOBAL_MAX_TIME_MS) {
       console.warn(`[AI Generator] Reached global generation time budget (${GLOBAL_MAX_TIME_MS}ms). Exiting fallback loop.`);
@@ -319,8 +318,9 @@ STRICT ALIGNMENT & FORMATTING RULES:
     const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
     try {
+      const model = getProviderModel(modelConfigs[i].providerName, modelConfigs[i].modelName);
       const response = await generateObject({
-        model: languageModels[i],
+        model: model,
         schema: schema,
         prompt: prompt,
         ...(isReasoningModel(modelConfigs[i].modelName) ? {} : { temperature: 0.2 }),
@@ -340,7 +340,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
   }
 
   if (!object || !object.questions) {
-    throw new Error(`All ${languageModels.length} configured AI models failed to generate questions. Error: ${getErrorMessage(lastError)}`);
+    throw new Error(`All ${modelConfigs.length} configured AI models failed to generate questions. Error: ${getErrorMessage(lastError)}`);
   }
 
   return object.questions.map((q: GeneratedQuestion, i: number) => {
