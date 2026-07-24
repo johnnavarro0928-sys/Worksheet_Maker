@@ -13,6 +13,9 @@ const MIN_MODEL_TIMEOUT_MS = 5000;
 const MAX_MODEL_TIMEOUT_MS = 60000;
 const DEFAULT_OPENROUTER_MODELS = [
   'google/gemini-2.5-flash:free',
+  'deepseek/deepseek-chat:free',
+  'deepseek/deepseek-r1:free',
+  'qwen/qwen-2.5-72b-instruct:free',
   'meta-llama/llama-3-8b-instruct:free',
   'microsoft/phi-3-mini-128k-instruct:free',
 ];
@@ -66,36 +69,35 @@ function isReasoningModel(modelName: string): boolean {
   return /^(?:gpt-5(?:[-.]|$)|o\d+(?:[-.]|$))/.test(normalizedName);
 }
 
-function appendOpenRouterFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttemptConfig[] {
-  if (!process.env.OPENROUTER_API_KEY) return modelConfigs;
-
+function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttemptConfig[] {
   const configs = [...modelConfigs];
   const seen = new Set(configs.map(config => `${config.providerName}:${config.modelName}`));
 
-  for (const modelName of DEFAULT_OPENROUTER_MODELS) {
-    const key = `openrouter:${modelName}`;
-    if (seen.has(key)) continue;
+  if (process.env.OPENROUTER_API_KEY) {
+    for (const modelName of DEFAULT_OPENROUTER_MODELS) {
+      const key = `openrouter:${modelName}`;
+      if (seen.has(key)) continue;
 
-    configs.push({ providerName: 'openrouter', modelName });
-    seen.add(key);
+      configs.push({ providerName: 'openrouter', modelName });
+      seen.add(key);
+    }
+  }
+
+  if (process.env.DEEPSEEK_API_KEY) {
+    const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    const key = `deepseek:${deepseekModel}`;
+    if (!seen.has(key)) {
+      configs.push({ providerName: 'deepseek', modelName: deepseekModel });
+      seen.add(key);
+    }
   }
 
   return configs;
 }
 
 function getModelAttemptConfigs(): ModelAttemptConfig[] {
-  // Parse comma-separated lists of providers and models
-  const hasAzureConfig = Boolean(
-    process.env.AZURE_OPENAI_API_KEY ||
-    process.env.AZURE_API_KEY ||
-    process.env.AZURE_OPENAI_ENDPOINT ||
-    process.env.AZURE_BASE_URL ||
-    process.env.AZURE_RESOURCE_NAME
-  );
-  const defaultProvider = hasAzureConfig ? 'azure' : 'openrouter';
-  const defaultModels = hasAzureConfig
-    ? (process.env.AZURE_MODEL || 'gpt-5-mini-2')
-    : DEFAULT_OPENROUTER_MODELS.join(',');
+  const defaultProvider = 'openrouter';
+  const defaultModels = process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODELS.join(',');
 
   const providersStr = process.env.ACTIVE_AI_PROVIDERS || process.env.ACTIVE_AI_PROVIDER || defaultProvider;
   const modelsStr = process.env.ACTIVE_AI_MODELS || process.env.ACTIVE_AI_MODEL || defaultModels;
@@ -103,7 +105,7 @@ function getModelAttemptConfigs(): ModelAttemptConfig[] {
   const providerNames = providersStr.split(',').map(s => s.trim()).filter(Boolean);
   const modelNames = modelsStr.split(',').map(s => s.trim()).filter(Boolean);
 
-  return appendOpenRouterFallbacks(modelNames.map((modelName, index) => ({
+  return appendProviderFallbacks(modelNames.map((modelName, index) => ({
     providerName: providerNames[index] || providerNames[0] || defaultProvider,
     modelName,
   })));
@@ -149,6 +151,15 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY required for Anthropic provider');
       const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       return anthropic(modelName);
+    }
+    case 'deepseek': {
+      const apiKey = process.env.DEEPSEEK_API_KEY;
+      if (!apiKey) throw new Error('DEEPSEEK_API_KEY required for DeepSeek provider');
+      const deepseek = createOpenAI({
+        baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+        apiKey: apiKey,
+      });
+      return deepseek(modelName);
     }
     case 'openrouter':
     default: {

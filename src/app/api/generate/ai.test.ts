@@ -62,6 +62,27 @@ describe('generateQuizQuestions', () => {
     expect(questions[0].id).toContain('mock-');
   });
 
+  it('defaults to OpenRouter provider with DeepSeek fallbacks when no provider is explicitly set', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    delete process.env.ACTIVE_AI_PROVIDER;
+    delete process.env.ACTIVE_AI_PROVIDERS;
+    delete process.env.ACTIVE_AI_MODEL;
+    delete process.env.ACTIVE_AI_MODELS;
+
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [{ text: 'Default OpenRouter question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }],
+      },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Physics', grade: '10', subject: 'Science', difficulty: 'Average', type: 'Multiple Choice', count: 1
+    });
+
+    expect(questions).toHaveLength(1);
+    expect(aiMocks.createModel).toHaveBeenCalledWith('google/gemini-2.5-flash:free');
+  });
+
   it('honors the configured AI model timeout instead of aborting at 10 seconds', async () => {
     vi.useFakeTimers();
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
@@ -217,6 +238,31 @@ describe('generateQuizQuestions', () => {
     expect(aiMocks.createModel).toHaveBeenCalledWith('google/gemini-2.5-flash:free');
   });
 
+  it('falls back to paid DeepSeek provider when all OpenRouter models fail or are busy', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openrouter';
+    process.env.ACTIVE_AI_MODEL = 'openrouter/model-1';
+
+    // Mock all OpenRouter model attempts failing (2 attempts per model * 7 openrouter models = 14 failures)
+    for (let i = 0; i < 14; i++) {
+      aiMocks.generateObject.mockRejectedValueOnce(new Error('OpenRouter model busy or rate limited'));
+    }
+    // Then direct DeepSeek provider succeeds
+    aiMocks.generateObject.mockResolvedValueOnce({
+      object: {
+        questions: [{ text: 'Resilient DeepSeek question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }],
+      },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Biology', grade: '9', subject: 'Science', difficulty: 'Average', type: 'Multiple Choice', count: 1
+    });
+
+    expect(questions).toHaveLength(1);
+    expect(aiMocks.createModel).toHaveBeenCalledWith('deepseek-chat');
+  });
+
   it('defaults output language to English in prompt when language is omitted', async () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.ACTIVE_AI_PROVIDER = 'openai';
@@ -284,5 +330,22 @@ describe('generateQuizQuestions', () => {
     const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
     expect(calledPrompt).toContain('- Output Language: English-Filipino bilingual');
     expect(calledPrompt).toContain('OUTPUT LANGUAGE INSTRUCTIONS (BILINGUAL ENGLISH-FILIPINO)');
+  });
+
+  it('supports direct DeepSeek provider when configured', async () => {
+    delete process.env.OPENROUTER_API_KEY;
+    process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
+    process.env.ACTIVE_AI_PROVIDER = 'deepseek';
+    process.env.ACTIVE_AI_MODEL = 'deepseek-chat';
+
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'DeepSeek Question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Chemistry', grade: '9', subject: 'Science', difficulty: 'Average', type: 'Multiple Choice', count: 1
+    });
+
+    expect(questions).toHaveLength(1);
   });
 });
