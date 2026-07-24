@@ -370,6 +370,6 @@ describe('generateQuizQuestions', () => {
     });
 
     expect(questions).toHaveLength(1);
-    expect(aiMocks.createModel).toHaveBeenCalledWith('qwen-plus');
+    expect(aiMocks.createModel).toHaveBeenCalledWith('qwen3.7-plus');
   });
 });

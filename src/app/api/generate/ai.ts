@@ -19,6 +19,14 @@ const DEFAULT_OPENROUTER_MODELS = [
   'openrouter/free',
 ];
 
+const DEFAULT_ALIBABA_MODELS = [
+  'qwen3.7-plus',
+  'qwen-plus',
+  'qwen-max',
+  'qwen2.5-72b-instruct',
+  'qwen-turbo',
+];
+
 type GeneratedQuestion = {
   text?: string;
   options?: string[];
@@ -83,10 +91,14 @@ function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttem
   }
 
   if (process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY) {
-    const alibabaModel = process.env.ALIBABA_MODEL || 'qwen-plus';
-    const key = `alibaba:${alibabaModel}`;
-    if (!seen.has(key)) {
-      configs.push({ providerName: 'alibaba', modelName: alibabaModel });
+    const configuredModel = process.env.ALIBABA_MODEL;
+    const alibabaModels = configuredModel ? [configuredModel, ...DEFAULT_ALIBABA_MODELS] : DEFAULT_ALIBABA_MODELS;
+
+    for (const modelName of alibabaModels) {
+      const key = `alibaba:${modelName}`;
+      if (seen.has(key)) continue;
+
+      configs.push({ providerName: 'alibaba', modelName });
       seen.add(key);
     }
   }
