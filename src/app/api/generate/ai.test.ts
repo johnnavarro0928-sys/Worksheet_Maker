@@ -155,7 +155,7 @@ describe('generateQuizQuestions', () => {
               ],
             },
           });
-        }, 10000);
+        }, 3000);
       });
     });
 
@@ -169,10 +169,10 @@ describe('generateQuizQuestions', () => {
     });
     void generation.catch(() => undefined);
 
-    await vi.advanceTimersByTimeAsync(8000);
+    await vi.advanceTimersByTimeAsync(2000);
     expect(capturedSignal?.aborted).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(2000);
     await expect(generation).resolves.toHaveLength(1);
   });
 
@@ -245,8 +245,8 @@ describe('generateQuizQuestions', () => {
     process.env.ACTIVE_AI_PROVIDER = 'openrouter';
     process.env.ACTIVE_AI_MODEL = 'openrouter/model-1';
 
-    // Mock all OpenRouter model attempts failing (2 attempts per model * 6 openrouter models = 12 failures)
-    for (let i = 0; i < 12; i++) {
+    // Mock all OpenRouter model attempts failing (1 attempt per model * 3 openrouter models = 3 failures)
+    for (let i = 0; i < 3; i++) {
       aiMocks.generateObject.mockRejectedValueOnce(new Error('OpenRouter model busy or rate limited'));
     }
     // Then direct DeepSeek provider succeeds
@@ -357,8 +357,8 @@ describe('generateQuizQuestions', () => {
     process.env.ACTIVE_AI_PROVIDER = 'openrouter';
     process.env.ACTIVE_AI_MODEL = 'openrouter/model-1';
 
-    // 6 OpenRouter models * 2 attempts = 12 failures
-    for (let i = 0; i < 12; i++) {
+    // 3 OpenRouter models * 1 attempt = 3 failures
+    for (let i = 0; i < 3; i++) {
       aiMocks.generateObject.mockRejectedValueOnce(new Error('OpenRouter model busy'));
     }
     // Then Alibaba Qwen succeeds

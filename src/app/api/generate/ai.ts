@@ -8,25 +8,17 @@ import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 
-const DEFAULT_MODEL_TIMEOUT_MS = 15000;
+const DEFAULT_MODEL_TIMEOUT_MS = 10000;
 const MIN_MODEL_TIMEOUT_MS = 3000;
-const MAX_MODEL_TIMEOUT_MS = 30000;
+const MAX_MODEL_TIMEOUT_MS = 20000;
 const DEFAULT_OPENROUTER_MODELS = [
   'openrouter/free',
   'deepseek/deepseek-chat:free',
-  'deepseek/deepseek-r1:free',
-  'qwen/qwen-2.5-72b-instruct:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
 ];
 
 const DEFAULT_ALIBABA_MODELS = [
   'qwen3.7-plus',
-  'qwen3.5-plus-2026-02-15',
-  'qwen3-max',
   'qwen-plus',
-  'qwen-max',
-  'qwen2.5-72b-instruct',
-  'qwen-turbo',
 ];
 
 type GeneratedQuestion = {
@@ -308,46 +300,36 @@ STRICT ALIGNMENT & FORMATTING RULES:
   const GLOBAL_MAX_TIME_MS = 48000;
 
   for (let i = 0; i < languageModels.length; i++) {
-    if (Date.now() - startTime > GLOBAL_MAX_TIME_MS) {
-      console.warn(`[AI Generator] Reached global generation time budget (${GLOBAL_MAX_TIME_MS}ms). Exiting fallback loop to prevent 504 timeout.`);
+    const elapsed = Date.now() - startTime;
+    if (elapsed > GLOBAL_MAX_TIME_MS) {
+      console.warn(`[AI Generator] Reached global generation time budget (${GLOBAL_MAX_TIME_MS}ms). Exiting fallback loop.`);
       break;
     }
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const elapsed = Date.now() - startTime;
-      if (elapsed > GLOBAL_MAX_TIME_MS) break;
 
-      const remainingMs = GLOBAL_MAX_TIME_MS - elapsed;
-      const attemptTimeoutMs = Math.min(modelTimeoutMs, remainingMs);
+    const remainingMs = GLOBAL_MAX_TIME_MS - elapsed;
+    const attemptTimeoutMs = Math.min(modelTimeoutMs, remainingMs);
+    if (attemptTimeoutMs < 2000) break;
 
-      if (attemptTimeoutMs < 2000) break;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
-
-      try {
-        const response = await generateObject({
-          model: languageModels[i],
-          schema: schema,
-          prompt: prompt,
-          ...(isReasoningModel(modelConfigs[i].modelName) ? {} : { temperature: 0.2 }),
-          abortSignal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        object = response.object as GeneratedQuestionsObject;
-        console.info(`[AI Generator] Successfully generated ${object.questions?.length || 0} questions using model ${modelConfigs[i].providerName}:${modelConfigs[i].modelName}`);
-        break;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        const modelConfig = modelConfigs[i];
-        console.warn(`AI model ${modelConfig.providerName}:${modelConfig.modelName} (attempt ${attempt}/2) failed: ${getErrorMessage(error)}`);
-        lastError = error;
-
-        // If timed out on attempt 1, try 1 automatic retry
-        if (attempt === 1) {
-          continue;
-        }
-        break;
-      }
+    try {
+      const response = await generateObject({
+        model: languageModels[i],
+        schema: schema,
+        prompt: prompt,
+        ...(isReasoningModel(modelConfigs[i].modelName) ? {} : { temperature: 0.2 }),
+        abortSignal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      object = response.object as GeneratedQuestionsObject;
+      console.info(`[AI Generator] Successfully generated ${object.questions?.length || 0} questions using model ${modelConfigs[i].providerName}:${modelConfigs[i].modelName}`);
+      break;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      const modelConfig = modelConfigs[i];
+      console.warn(`AI model ${modelConfig.providerName}:${modelConfig.modelName} failed: ${getErrorMessage(error)}`);
+      lastError = error;
     }
     if (object?.questions) break;
   }
