@@ -21,6 +21,8 @@ const DEFAULT_OPENROUTER_MODELS = [
 
 const DEFAULT_ALIBABA_MODELS = [
   'qwen3.7-plus',
+  'qwen3.5-plus-2026-02-15',
+  'qwen3-max',
   'qwen-plus',
   'qwen-max',
   'qwen2.5-72b-instruct',
