@@ -17,8 +17,8 @@ const DEFAULT_OPENROUTER_MODELS = [
 ];
 
 const DEFAULT_ALIBABA_MODELS = [
-  'qwen3.7-plus',
   'qwen-plus',
+  'qwen3.7-plus',
 ];
 
 type GeneratedQuestion = {

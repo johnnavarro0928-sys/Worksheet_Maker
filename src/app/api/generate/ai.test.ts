@@ -81,7 +81,7 @@ describe('generateQuizQuestions', () => {
     });
 
     expect(questions).toHaveLength(1);
-    expect(aiMocks.createModel).toHaveBeenCalledWith('qwen3.7-plus');
+    expect(aiMocks.createModel).toHaveBeenCalledWith('qwen-plus');
   });
 
   it('honors the configured AI model timeout instead of aborting at 10 seconds', async () => {
