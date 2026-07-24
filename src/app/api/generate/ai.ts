@@ -8,9 +8,9 @@ import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 
-const DEFAULT_MODEL_TIMEOUT_MS = 10000;
-const MIN_MODEL_TIMEOUT_MS = 3000;
-const MAX_MODEL_TIMEOUT_MS = 20000;
+const DEFAULT_MODEL_TIMEOUT_MS = 20000;
+const MIN_MODEL_TIMEOUT_MS = 5000;
+const MAX_MODEL_TIMEOUT_MS = 35000;
 const DEFAULT_OPENROUTER_MODELS = [
   'openrouter/free',
   'deepseek/deepseek-chat:free',
@@ -48,10 +48,13 @@ export interface QuizParams {
   language?: string;
 }
 
-function getModelTimeoutMs(): number {
-  const parsed = Number.parseInt(process.env.AI_MODEL_TIMEOUT_MS || '', 10);
-  if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
-  return DEFAULT_MODEL_TIMEOUT_MS;
+function getModelTimeoutMs(count: number = 5): number {
+  if (process.env.AI_MODEL_TIMEOUT_MS) {
+    const parsed = Number.parseInt(process.env.AI_MODEL_TIMEOUT_MS, 10);
+    if (Number.isFinite(parsed)) return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, parsed));
+  }
+  const calculated = Math.round(12000 + count * 1800);
+  return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, calculated));
 }
 
 function getErrorMessage(error: unknown): string {
@@ -151,16 +154,17 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       const openaiAzure = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
+        compatibility: 'compatible',
         headers: {
           'api-key': apiKey,
         },
       });
-      return openaiAzure(modelName);
+      return openaiAzure.chat(modelName);
     }
     case 'openai': {
       if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY required for OpenAI provider');
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      return openai(modelName);
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, compatibility: 'compatible' });
+      return openai.chat(modelName);
     }
     case 'google': {
       if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) throw new Error('GOOGLE_GENERATIVE_AI_API_KEY required for Google provider');
@@ -180,8 +184,9 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       const alibaba = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
+        compatibility: 'compatible',
       });
-      return alibaba(modelName);
+      return alibaba.chat(modelName);
     }
     case 'deepseek': {
       const apiKey = process.env.DEEPSEEK_API_KEY;
@@ -190,8 +195,9 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       const deepseek = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
+        compatibility: 'compatible',
       });
-      return deepseek(modelName);
+      return deepseek.chat(modelName);
     }
     case 'openrouter':
     default: {
@@ -297,9 +303,9 @@ STRICT ALIGNMENT & FORMATTING RULES:
 
   let object: GeneratedQuestionsObject | undefined;
   let lastError: unknown;
-  const modelTimeoutMs = getModelTimeoutMs();
+  const modelTimeoutMs = getModelTimeoutMs(params.count);
   const startTime = Date.now();
-  const GLOBAL_MAX_TIME_MS = 48000;
+  const GLOBAL_MAX_TIME_MS = 52000;
 
   for (let i = 0; i < languageModels.length; i++) {
     const elapsed = Date.now() - startTime;

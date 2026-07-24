@@ -20,7 +20,7 @@ vi.mock('@openrouter/ai-sdk-provider', () => ({
 }));
 
 vi.mock('@ai-sdk/openai', () => ({
-  createOpenAI: vi.fn(() => aiMocks.createModel),
+  createOpenAI: vi.fn(() => Object.assign((modelName: string) => aiMocks.createModel(modelName), { chat: aiMocks.createModel })),
 }));
 
 vi.mock('@ai-sdk/google', () => ({
