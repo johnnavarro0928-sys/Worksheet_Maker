@@ -282,6 +282,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
         });
         clearTimeout(timeoutId);
         object = response.object as GeneratedQuestionsObject;
+        console.info(`[AI Generator] Successfully generated ${object.questions?.length || 0} questions using model ${modelConfigs[i].providerName}:${modelConfigs[i].modelName}`);
         break;
       } catch (error) {
         clearTimeout(timeoutId);
