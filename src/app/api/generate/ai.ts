@@ -12,8 +12,8 @@ const DEFAULT_MODEL_TIMEOUT_MS = 20000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
 const MAX_MODEL_TIMEOUT_MS = 35000;
 const DEFAULT_OPENROUTER_MODELS = [
-  'openrouter/free',
-  'deepseek/deepseek-chat:free',
+  'openai/gpt-oss-20b:free',
+  'nvidia/nemotron-nano-9b-v2:free',
 ];
 
 const DEFAULT_ALIBABA_MODELS = [
