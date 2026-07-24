@@ -154,7 +154,6 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       const openaiAzure = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
-        compatibility: 'compatible',
         headers: {
           'api-key': apiKey,
         },
@@ -163,7 +162,7 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
     }
     case 'openai': {
       if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY required for OpenAI provider');
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, compatibility: 'compatible' });
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
       return openai.chat(modelName);
     }
     case 'google': {
@@ -184,7 +183,6 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       const alibaba = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
-        compatibility: 'compatible',
       });
       return alibaba.chat(modelName);
     }
@@ -195,7 +193,6 @@ function getProviderModel(providerName: string, modelName: string): LanguageMode
       const deepseek = createOpenAI({
         baseURL: baseURL,
         apiKey: apiKey,
-        compatibility: 'compatible',
       });
       return deepseek.chat(modelName);
     }
