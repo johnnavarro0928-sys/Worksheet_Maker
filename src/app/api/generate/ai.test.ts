@@ -261,7 +261,7 @@ describe('generateQuizQuestions', () => {
     });
 
     expect(questions).toHaveLength(1);
-    expect(aiMocks.createModel).toHaveBeenCalledWith('deepseek-chat');
+    expect(aiMocks.createModel).toHaveBeenCalledWith('deepseek-v4-flash');
   });
 
   it('defaults output language to English in prompt when language is omitted', async () => {

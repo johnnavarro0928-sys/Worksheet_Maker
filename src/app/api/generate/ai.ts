@@ -104,7 +104,7 @@ function appendProviderFallbacks(modelConfigs: ModelAttemptConfig[]): ModelAttem
 
   // 3. Paid DeepSeek API (if key present)
   if (process.env.DEEPSEEK_API_KEY) {
-    const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
     const key = `deepseek:${deepseekModel}`;
     if (!seen.has(key)) {
       configs.push({ providerName: 'deepseek', modelName: deepseekModel });
