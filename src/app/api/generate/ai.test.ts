@@ -244,8 +244,8 @@ describe('generateQuizQuestions', () => {
     process.env.ACTIVE_AI_PROVIDER = 'openrouter';
     process.env.ACTIVE_AI_MODEL = 'openrouter/model-1';
 
-    // Mock all OpenRouter model attempts failing (2 attempts per model * 7 openrouter models = 14 failures)
-    for (let i = 0; i < 14; i++) {
+    // Mock all OpenRouter model attempts failing (2 attempts per model * 6 openrouter models = 12 failures)
+    for (let i = 0; i < 12; i++) {
       aiMocks.generateObject.mockRejectedValueOnce(new Error('OpenRouter model busy or rate limited'));
     }
     // Then direct DeepSeek provider succeeds

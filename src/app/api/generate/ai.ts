@@ -16,8 +16,7 @@ const DEFAULT_OPENROUTER_MODELS = [
   'deepseek/deepseek-chat:free',
   'deepseek/deepseek-r1:free',
   'qwen/qwen-2.5-72b-instruct:free',
-  'meta-llama/llama-3-8b-instruct:free',
-  'microsoft/phi-3-mini-128k-instruct:free',
+  'openrouter/free',
 ];
 
 type GeneratedQuestion = {
