@@ -7,6 +7,7 @@ import { createAzure } from '@ai-sdk/azure';
 import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
+import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
 
 const DEFAULT_MODEL_TIMEOUT_MS = 20000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
@@ -31,8 +32,6 @@ type GeneratedQuestion = {
 type GeneratedQuestionsObject = {
   questions?: GeneratedQuestion[];
 };
-
-const BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN = [0, 2, 1, 3, 1, 0, 3, 2];
 
 type ModelAttemptConfig = {
   providerName: string;
@@ -235,32 +234,6 @@ function getSchemaForType(type: string) {
         }))
       });
   }
-}
-
-function balanceMultipleChoiceAnswers(questions: GeneratedQuestion[], type: string): GeneratedQuestion[] {
-  if (type !== 'Multiple Choice') return questions;
-
-  return questions.map((question, index) => {
-    if (!question.options || question.options.length !== 4 || typeof question.correctAnswer !== 'number') {
-      return question;
-    }
-
-    const currentAnswerIndex = question.correctAnswer;
-    if (currentAnswerIndex < 0 || currentAnswerIndex > 3) return question;
-
-    const targetAnswerIndex = BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN[index % BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN.length];
-    if (currentAnswerIndex === targetAnswerIndex) return question;
-
-    const options = [...question.options];
-    options[targetAnswerIndex] = question.options[currentAnswerIndex];
-    options[currentAnswerIndex] = question.options[targetAnswerIndex];
-
-    return {
-      ...question,
-      options,
-      correctAnswer: targetAnswerIndex,
-    };
-  });
 }
 
 export async function generateQuizQuestions(params: QuizParams): Promise<Question[]> {

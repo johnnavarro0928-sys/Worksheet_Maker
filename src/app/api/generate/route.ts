@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       type: type || 'Multiple Choice',
       text: q.text,
       options: q.options,
+      correctAnswer: q.options && typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined,
       answer: q.options && typeof q.correctAnswer === 'number' 
         ? q.options[q.correctAnswer] 
         : (q.correctAnswer === 0 ? 'True' : 'False')

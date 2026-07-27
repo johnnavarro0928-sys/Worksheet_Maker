@@ -4,6 +4,7 @@ import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, Pl
 import { generateDocx } from "../utils/exportDocs";
 import { useState } from "react";
 import { Question, Section, WorksheetData } from "../types";
+import { balanceMultipleChoiceAnswers } from "../utils/balanceMcqAnswers";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
@@ -212,7 +213,7 @@ export default function Home() {
       };
 
       const results = await Promise.all(batches.map(fetchBatch));
-      const allQuestions = results.flat();
+      const allQuestions = balanceMultipleChoiceAnswers(results.flat(), generateConfig.type);
 
       if (allQuestions.length > 0) {
         const cleanedQuestions = allQuestions.map((q: Question) => {
