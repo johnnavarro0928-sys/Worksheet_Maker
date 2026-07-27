@@ -32,6 +32,8 @@ type GeneratedQuestionsObject = {
   questions?: GeneratedQuestion[];
 };
 
+const BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN = [0, 2, 1, 3, 1, 0, 3, 2];
+
 type ModelAttemptConfig = {
   providerName: string;
   modelName: string;
@@ -235,6 +237,32 @@ function getSchemaForType(type: string) {
   }
 }
 
+function balanceMultipleChoiceAnswers(questions: GeneratedQuestion[], type: string): GeneratedQuestion[] {
+  if (type !== 'Multiple Choice') return questions;
+
+  return questions.map((question, index) => {
+    if (!question.options || question.options.length !== 4 || typeof question.correctAnswer !== 'number') {
+      return question;
+    }
+
+    const currentAnswerIndex = question.correctAnswer;
+    if (currentAnswerIndex < 0 || currentAnswerIndex > 3) return question;
+
+    const targetAnswerIndex = BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN[index % BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN.length];
+    if (currentAnswerIndex === targetAnswerIndex) return question;
+
+    const options = [...question.options];
+    options[targetAnswerIndex] = question.options[currentAnswerIndex];
+    options[currentAnswerIndex] = question.options[targetAnswerIndex];
+
+    return {
+      ...question,
+      options,
+      correctAnswer: targetAnswerIndex,
+    };
+  });
+}
+
 export async function generateQuizQuestions(params: QuizParams): Promise<Question[]> {
   if (params.topic === 'MOCK_TEST') {
     return Array.from({ length: params.count }).map((_, i) => ({
@@ -294,9 +322,10 @@ STRICT ALIGNMENT & FORMATTING RULES:
 1. If multiple Learning Competencies or Specific Objectives are specified (e.g. separated by commas, semicolons, numbers, or bullet points), evenly distribute the ${params.count} generated test questions across ALL of the listed competencies and objectives.
 2. Every question MUST strictly evaluate the specified Learning Competencies and Specific Objectives at the exact ${params.difficulty} cognitive depth for ${params.grade}.
 3. Distractor choices for Multiple Choice MUST be plausible and educationally meaningful, avoiding obvious filler options.
-4. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
-5. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
-6. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
+4. For Multiple Choice, distribute correct answer letters A-D as evenly as possible across the full test. When the item count is not divisible by 4, no answer letter should appear more than one item above another answer letter. Avoid long runs or visible clustering of the same correct answer letter.
+5. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
+6. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
+7. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
 
   let object: GeneratedQuestionsObject | undefined;
   let lastError: unknown;
@@ -344,7 +373,9 @@ STRICT ALIGNMENT & FORMATTING RULES:
     throw new Error(`All ${modelConfigs.length} configured AI models failed to generate questions. Error: ${getErrorMessage(lastError)}`);
   }
 
-  return object.questions.map((q: GeneratedQuestion, i: number) => {
+  const questions = balanceMultipleChoiceAnswers(object.questions, params.type);
+
+  return questions.map((q: GeneratedQuestion, i: number) => {
     let cleanText = (q.text || "").trim();
     while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
       cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();

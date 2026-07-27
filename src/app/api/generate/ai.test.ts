@@ -62,6 +62,39 @@ describe('generateQuizQuestions', () => {
     expect(questions[0].id).toContain('mock-');
   });
 
+  it('balances multiple-choice answer letters across generated questions', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: Array.from({ length: 15 }, (_, i) => ({
+          text: `Question ${i + 1}?`,
+          options: [`Distractor A ${i}`, `Correct ${i}`, `Distractor C ${i}`, `Distractor D ${i}`],
+          correctAnswer: 1,
+        })),
+      },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Ecosystems',
+      grade: '6',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 15,
+    });
+
+    const answerCounts = [0, 0, 0, 0];
+    questions.forEach((question, i) => {
+      expect(question.options?.[question.correctAnswer ?? -1]).toBe(`Correct ${i}`);
+      answerCounts[question.correctAnswer ?? -1] += 1;
+    });
+
+    expect(Math.max(...answerCounts) - Math.min(...answerCounts)).toBeLessThanOrEqual(1);
+    expect(answerCounts[1]).toBeLessThan(15);
+  });
+
   it('defaults to Alibaba Qwen provider when DASHSCOPE_API_KEY is set', async () => {
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
