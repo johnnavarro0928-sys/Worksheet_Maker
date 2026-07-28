@@ -4,7 +4,7 @@ import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, Pl
 import { generateDocx } from "../utils/exportDocs";
 import { useState } from "react";
 import { Question, Section, WorksheetData } from "../types";
-import { balanceMultipleChoiceAnswers } from "../utils/balanceMcqAnswers";
+import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
@@ -189,20 +189,12 @@ export default function Home() {
     setIsGenerating(true);
     try {
       const totalCount = generateConfig.count || 5;
-      // Split into parallel batches of max 5 questions each to guarantee completion within Vercel's 15s limit
-      const batches: number[] = [];
-      let remaining = totalCount;
-      while (remaining > 0) {
-        const chunkSize = Math.min(5, remaining);
-        batches.push(chunkSize);
-        remaining -= chunkSize;
-      }
-
-      const fetchBatch = async (batchCount: number) => {
+      const targetSection = sections.find((s) => s.id === activeSectionId);
+      const fetchBatch = async (requestBody: QuestionBatchRequest | QuestionGenerationConfig) => {
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...generateConfig, count: batchCount })
+          body: JSON.stringify(requestBody)
         });
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
@@ -212,8 +204,27 @@ export default function Home() {
         return data.questions || [];
       };
 
-      const results = await Promise.all(batches.map(fetchBatch));
-      const allQuestions = balanceMultipleChoiceAnswers(results.flat(), generateConfig.type);
+      let allQuestions: Question[];
+      if (generateConfig.type === 'Multiple Choice') {
+        allQuestions = await generateUniqueQuestionBatches(
+          { ...generateConfig, count: totalCount },
+          fetchBatch,
+          targetSection?.questions || [],
+        );
+      } else {
+        const batches: number[] = [];
+        let remaining = totalCount;
+        while (remaining > 0) {
+          const chunkSize = Math.min(5, remaining);
+          batches.push(chunkSize);
+          remaining -= chunkSize;
+        }
+
+        const results = await Promise.all(
+          batches.map((batchCount) => fetchBatch({ ...generateConfig, count: batchCount })),
+        );
+        allQuestions = results.flat();
+      }
 
       if (allQuestions.length > 0) {
         const cleanedQuestions = allQuestions.map((q: Question) => {
@@ -231,6 +242,11 @@ export default function Home() {
               : s
           )
         );
+        if (generateConfig.type === 'Multiple Choice' && cleanedQuestions.length < totalCount) {
+          alert(`Generated ${cleanedQuestions.length} unique questions. Some repeated items were removed; try generating again to add more.`);
+        } else if (cleanedQuestions.length < totalCount) {
+          alert(`Generated ${cleanedQuestions.length} questions. Try generating again to add more.`);
+        }
       } else {
         alert("No questions returned from generator.");
       }

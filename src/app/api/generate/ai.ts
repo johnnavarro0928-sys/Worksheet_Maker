@@ -48,6 +48,39 @@ export interface QuizParams {
   type: string; 
   count: number;
   language?: string;
+  totalCount?: number;
+  batchStart?: number;
+  avoidQuestions?: string[];
+}
+
+function getPromptListItem(text: string): string {
+  const trimmed = text.trim().replace(/\s+/g, ' ');
+  return trimmed.length > 180 ? `${trimmed.slice(0, 177)}...` : trimmed;
+}
+
+function getBatchUniquenessRules(params: QuizParams): string {
+  const rules: string[] = [];
+
+  if (params.totalCount && params.batchStart) {
+    const batchEnd = params.batchStart + params.count - 1;
+    rules.push(`BATCH UNIQUENESS CONTEXT:
+- This request is for items ${params.batchStart}-${batchEnd} of a ${params.totalCount}-item worksheet.
+- Generate only new questions for this assigned range. Do not restart from the most obvious introductory items for the topic.
+- Use varied concepts, examples, data, contexts, and wording across the full worksheet.`);
+  }
+
+  const avoidQuestions = (params.avoidQuestions || [])
+    .map(getPromptListItem)
+    .filter(Boolean)
+    .slice(0, 40);
+
+  if (avoidQuestions.length > 0) {
+    rules.push(`ALREADY ACCEPTED QUESTIONS TO AVOID:
+Do NOT duplicate or rephrase these already accepted questions:
+${avoidQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n')}`);
+  }
+
+  return rules.join('\n\n');
 }
 
 function getModelTimeoutMs(count: number = 5): number {
@@ -267,6 +300,8 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
 - Write ALL generated questions and distractor options in clear, standard classroom English.`;
   }
 
+  const batchUniquenessRules = getBatchUniquenessRules(params);
+
   const prompt = `You are a master curriculum specialist and item writer. Generate a ${params.type} test with ${params.count} questions.
 
 TARGET AUDIENCE & CONTEXT:
@@ -279,6 +314,8 @@ TARGET AUDIENCE & CONTEXT:
 - Output Language: ${outputLang}
 
 ${languageRules}
+
+${batchUniquenessRules}
 
 GRADE-LEVEL COGNITIVE & VOCABULARY ADAPTATION:
 - Kindergarten - Grade 2: Use simple, short, age-appropriate sentences, concrete familiar terms, and direct foundational concepts.

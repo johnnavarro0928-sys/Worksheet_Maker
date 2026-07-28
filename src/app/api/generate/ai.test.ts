@@ -95,6 +95,44 @@ describe('generateQuizQuestions', () => {
     expect(answerCounts[1]).toBeLessThan(15);
   });
 
+  it('includes batch range and accepted questions in the generation prompt', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [
+          {
+            text: 'What gas do plants release during photosynthesis?',
+            options: ['Oxygen', 'Nitrogen', 'Helium', 'Argon'],
+            correctAnswer: 0,
+          },
+        ],
+      },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Photosynthesis',
+      grade: 'Grade 6',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+      totalCount: 25,
+      batchStart: 6,
+      avoidQuestions: [
+        'What is photosynthesis?',
+        'Which pigment helps plants absorb light?',
+      ],
+    });
+
+    const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(calledPrompt).toContain('items 6-6 of a 25-item worksheet');
+    expect(calledPrompt).toContain('Do NOT duplicate or rephrase these already accepted questions');
+    expect(calledPrompt).toContain('What is photosynthesis?');
+    expect(calledPrompt).toContain('Which pigment helps plants absorb light?');
+  });
+
   it('defaults to Alibaba Qwen provider when DASHSCOPE_API_KEY is set', async () => {
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';

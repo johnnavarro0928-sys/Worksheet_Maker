@@ -5,13 +5,33 @@ import { requireExistingSession } from '../_lib/sessionAuth';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export async function POST(req: Request) {
   const sessionError = await requireExistingSession(req);
   if (sessionError) return sessionError;
 
   try {
     const body = await req.json();
-    const { topic, competency, objective, grade, subject, type, difficulty, count, language, outputLanguage } = body;
+    const {
+      topic,
+      competency,
+      objective,
+      grade,
+      subject,
+      type,
+      difficulty,
+      count,
+      language,
+      outputLanguage,
+      avoidQuestions,
+      totalCount,
+      batchStart,
+    } = body;
 
     const questions = await generateQuizQuestions({
       topic,
@@ -22,7 +42,10 @@ export async function POST(req: Request) {
       type,
       difficulty,
       count: parseInt(count) || 5,
-      language: language || outputLanguage || 'English'
+      language: language || outputLanguage || 'English',
+      avoidQuestions: Array.isArray(avoidQuestions) ? avoidQuestions : undefined,
+      totalCount: parseOptionalNumber(totalCount),
+      batchStart: parseOptionalNumber(batchStart),
     });
 
     // Map output to the frontend expected format
