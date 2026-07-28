@@ -133,6 +133,44 @@ describe('generateQuizQuestions', () => {
     expect(calledPrompt).toContain('Which pigment helps plants absorb light?');
   });
 
+  it('strips answer labels from generated multiple-choice options', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [
+          {
+            text: 'Which factor best explains the observation?',
+            options: [
+              'A. Surface area and decreasing concentration of reactants',
+              'B. Temperature and concentration of reactants',
+              'C. Surface area and catalyst presence',
+              'D. Pressure and nature of the reactants',
+            ],
+            correctAnswer: 0,
+          },
+        ],
+      },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Reaction rates',
+      grade: 'Grade 10',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    });
+
+    expect(questions[0].options).toEqual([
+      'Surface area and decreasing concentration of reactants',
+      'Temperature and concentration of reactants',
+      'Surface area and catalyst presence',
+      'Pressure and nature of the reactants',
+    ]);
+  });
+
   it('defaults to Alibaba Qwen provider when DASHSCOPE_API_KEY is set', async () => {
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';

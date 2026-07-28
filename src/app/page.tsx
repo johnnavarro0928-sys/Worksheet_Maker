@@ -5,6 +5,7 @@ import { generateDocx } from "../utils/exportDocs";
 import { useState } from "react";
 import { Question, Section, WorksheetData } from "../types";
 import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
+import { stripAnswerLabelPrefixes } from "../utils/answerOptionLabels";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
@@ -659,7 +660,7 @@ export default function Home() {
                               {/* Question Type specific displays */}
                               {q.options && q.options.length > 0 && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingLeft: '24px', marginTop: '8px' }}>
-                                  {q.options.map((opt, i) => (
+                                  {stripAnswerLabelPrefixes(q.options).map((opt, i) => (
                                     <div key={i} style={{ fontSize: '14px', color: '#334155' }}>{String.fromCharCode(65 + i)}. {opt}</div>
                                   ))}
                                 </div>

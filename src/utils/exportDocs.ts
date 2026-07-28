@@ -1,6 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ImageRun, VerticalAlign } from "docx";
 import { saveAs } from "file-saver";
 import { WorksheetData } from "../types";
+import { stripAnswerLabelPrefixes } from "./answerOptionLabels";
 
 // Convert centimeters to pixels (1 cm = 37.79527559 px)
 const cmToPx = (cm: number) => Math.round(cm * 37.79527559);
@@ -207,7 +208,7 @@ export const generateDocx = async (quizData: WorksheetData) => {
       ];
 
       if (q.options && q.options.length > 0) {
-        q.options.forEach((opt, optIdx) => {
+        stripAnswerLabelPrefixes(q.options).forEach((opt, optIdx) => {
           qChildren.push(
             new TextRun({ text: `\n   ${String.fromCharCode(65 + optIdx)}. ${opt}`, break: 1 })
           );

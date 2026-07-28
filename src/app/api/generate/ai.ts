@@ -8,6 +8,7 @@ import { generateObject, LanguageModel } from 'ai';
 import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
+import { stripAnswerLabelPrefixes } from '../../../utils/answerOptionLabels';
 
 const DEFAULT_MODEL_TIMEOUT_MS = 20000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
@@ -335,7 +336,8 @@ STRICT ALIGNMENT & FORMATTING RULES:
 4. For Multiple Choice, distribute correct answer letters A-D as evenly as possible across the full test. When the item count is not divisible by 4, no answer letter should appear more than one item above another answer letter. Avoid long runs or visible clustering of the same correct answer letter.
 5. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
 6. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
-7. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.`;
+7. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.
+8. For Multiple Choice options, do NOT include option letters or labels inside the option text (such as 'A.', 'B)', 'Option C:', or 'D -'). Return ONLY the clean answer choice text.`;
 
   let object: GeneratedQuestionsObject | undefined;
   let lastError: unknown;
@@ -383,7 +385,11 @@ STRICT ALIGNMENT & FORMATTING RULES:
     throw new Error(`All ${modelConfigs.length} configured AI models failed to generate questions. Error: ${getErrorMessage(lastError)}`);
   }
 
-  const questions = balanceMultipleChoiceAnswers(object.questions, params.type);
+  const generatedQuestions = object.questions.map((question) => ({
+    ...question,
+    options: question.options ? stripAnswerLabelPrefixes(question.options) : undefined,
+  }));
+  const questions = balanceMultipleChoiceAnswers(generatedQuestions, params.type);
 
   return questions.map((q: GeneratedQuestion, i: number) => {
     let cleanText = (q.text || "").trim();
