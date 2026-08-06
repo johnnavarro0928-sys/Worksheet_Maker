@@ -53,6 +53,7 @@ export default function Home() {
 
   const [activeSectionId, setActiveSectionId] = useState<string>("sec-1");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
 
   // Section Management Handlers
   const handleSelectSection = (sec: Section) => {
@@ -178,7 +179,7 @@ export default function Home() {
       ...quizData,
       sections: sections
     };
-    await generateDocx(fullWorksheet);
+    await generateDocx(fullWorksheet, includeAnswerKey);
   };
 
   const handleGenerate = async () => {
@@ -478,6 +479,10 @@ export default function Home() {
             <button className="neu-button-solid bg-ios-red">
               <FileText size={16} /> PDF
             </button>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={includeAnswerKey} onChange={(e) => setIncludeAnswerKey(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+              Include Answer Key
+            </label>
             <button className="neu-button-solid bg-ios-blue" onClick={handleExportDocx}>
               <Download size={16} /> DOCX
             </button>
