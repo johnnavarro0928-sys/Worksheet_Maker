@@ -12,6 +12,10 @@ function mcq(id: string, text: string): Question {
   };
 }
 
+function identification(id: string, text: string): Question {
+  return { id, type: 'Identification', text, answer: `Answer ${id}` };
+}
+
 describe('generateUniqueQuestionBatches', () => {
   it('refills duplicate-heavy MCQ batches until the requested unique count is reached', async () => {
     const fetchQuestionBatch = vi.fn()
@@ -89,5 +93,49 @@ describe('generateUniqueQuestionBatches', () => {
       'What gas do plants release during photosynthesis?',
     ]);
     expect(fetchQuestionBatch.mock.calls[0][0].avoidQuestions).toEqual(['1. What is photosynthesis?']);
+  });
+
+  it('refills duplicate-heavy Identification batches until the requested unique count is reached', async () => {
+    const fetchQuestionBatch = vi.fn()
+      .mockResolvedValueOnce([
+        identification('q1', 'Who wrote Noli Me Tangere?'),
+        identification('q2', 'Who wrote Noli Me Tangere'),   // duplicate (normalized)
+        identification('q3', 'What is the national flower of the Philippines?'),
+      ])
+      .mockResolvedValueOnce([
+        identification('q4', 'Who wrote Noli Me Tangere?'),  // duplicate again
+        identification('q5', 'Who proclaimed Philippine independence?'),
+        identification('q6', 'What year did Rizal die?'),
+      ])
+      .mockResolvedValueOnce([identification('q7', 'Where was Rizal born?')]);
+
+    const result = await generateUniqueQuestionBatches(
+      {
+        topic: 'Philippine History',
+        competency: 'Identify key historical figures and facts.',
+        grade: 'Grade 8',
+        subject: 'History',
+        language: 'English',
+        type: 'Identification',
+        difficulty: 'Average',
+        count: 5,
+      },
+      fetchQuestionBatch,
+    );
+
+    expect(result).toHaveLength(5);
+    expect(new Set(result.map(q => q.text))).toHaveProperty('size', 5);
+    expect(fetchQuestionBatch).toHaveBeenCalledTimes(3);
+
+    // Second batch should request only the 3 still-needed, starting at position 3
+    expect(fetchQuestionBatch.mock.calls[1][0]).toMatchObject({
+      count: 3,
+      totalCount: 5,
+      batchStart: 3,
+      avoidQuestions: [
+        'Who wrote Noli Me Tangere?',
+        'What is the national flower of the Philippines?',
+      ],
+    });
   });
 });

@@ -206,27 +206,11 @@ export default function Home() {
         return data.questions || [];
       };
 
-      let allQuestions: Question[];
-      if (generateConfig.type === 'Multiple Choice') {
-        allQuestions = await generateUniqueQuestionBatches(
-          { ...generateConfig, count: totalCount },
-          fetchBatch,
-          targetSection?.questions || [],
-        );
-      } else {
-        const batches: number[] = [];
-        let remaining = totalCount;
-        while (remaining > 0) {
-          const chunkSize = Math.min(5, remaining);
-          batches.push(chunkSize);
-          remaining -= chunkSize;
-        }
-
-        const results = await Promise.all(
-          batches.map((batchCount) => fetchBatch({ ...generateConfig, count: batchCount })),
-        );
-        allQuestions = results.flat();
-      }
+      const allQuestions = await generateUniqueQuestionBatches(
+        { ...generateConfig, count: totalCount },
+        fetchBatch,
+        targetSection?.questions || [],
+      );
 
       if (allQuestions.length > 0) {
         const cleanedQuestions = allQuestions.map((q: Question) => {
@@ -244,10 +228,8 @@ export default function Home() {
               : s
           )
         );
-        if (generateConfig.type === 'Multiple Choice' && cleanedQuestions.length < totalCount) {
+        if (cleanedQuestions.length < totalCount) {
           alert(`Generated ${cleanedQuestions.length} unique questions. Some repeated items were removed; try generating again to add more.`);
-        } else if (cleanedQuestions.length < totalCount) {
-          alert(`Generated ${cleanedQuestions.length} questions. Try generating again to add more.`);
         }
       } else {
         alert("No questions returned from generator.");
