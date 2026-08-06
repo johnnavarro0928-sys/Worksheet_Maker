@@ -18,7 +18,7 @@ async function getImageBuffer(url: string): Promise<Uint8Array | null> {
   }
 }
 
-export const generateDocx = async (quizData: WorksheetData) => {
+export const generateDocx = async (quizData: WorksheetData, includeAnswerKey: boolean = true) => {
   const [matatagBuffer, sealBuffer] = await Promise.all([
     getImageBuffer('/images/logo_deped_matatag.png'),
     getImageBuffer('/images/logo_deped_seal.png')
@@ -227,41 +227,44 @@ export const generateDocx = async (quizData: WorksheetData) => {
     });
   });
 
-  // Answer Key page (only if there are answerable MC / T-or-F sections)
-  const answerKeyEntries = buildAnswerKey(quizData);
-  if (answerKeyEntries.length > 0) {
-    // Page break before the answer key heading
-    children.push(
-      new Paragraph({
-        pageBreakBefore: true,
-        alignment: AlignmentType.CENTER,
-        children: [
-          new TextRun({ text: "ANSWER KEY", bold: true, color: "1E3A8A" }),
-        ],
-      })
-    );
-
-    answerKeyEntries.forEach((entry) => {
+  // Answer Key page (only if there are answerable MC / T-or-F / Identification sections
+  // and the caller has opted in)
+  if (includeAnswerKey) {
+    const answerKeyEntries = buildAnswerKey(quizData);
+    if (answerKeyEntries.length > 0) {
+      // Page break before the answer key heading
       children.push(
         new Paragraph({
+          pageBreakBefore: true,
+          alignment: AlignmentType.CENTER,
           children: [
-            new TextRun({ text: entry.sectionTitle, bold: true }),
+            new TextRun({ text: "ANSWER KEY", bold: true, color: "1E3A8A" }),
           ],
         })
       );
 
-      entry.lines.forEach((line) => {
+      answerKeyEntries.forEach((entry) => {
         children.push(
           new Paragraph({
             children: [
-              new TextRun({ text: line }),
+              new TextRun({ text: entry.sectionTitle, bold: true }),
             ],
           })
         );
-      });
 
-      children.push(new Paragraph({ text: "" }));
-    });
+        entry.lines.forEach((line) => {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: line }),
+              ],
+            })
+          );
+        });
+
+        children.push(new Paragraph({ text: "" }));
+      });
+    }
   }
 
   // Page Margins: Narrow Layout (0.5 in / 720 dxa on all sides)
