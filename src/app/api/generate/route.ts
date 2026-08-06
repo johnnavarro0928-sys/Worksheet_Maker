@@ -49,16 +49,29 @@ export async function POST(req: Request) {
     });
 
     // Map output to the frontend expected format
-    const formattedQuestions = questions.map(q => ({
-      id: q.id,
-      type: type || 'Multiple Choice',
-      text: q.text,
-      options: q.options,
-      correctAnswer: q.options && typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined,
-      answer: q.options && typeof q.correctAnswer === 'number' 
-        ? q.options[q.correctAnswer] 
-        : (q.correctAnswer === 0 ? 'True' : 'False')
-    }));
+    const formattedQuestions = questions.map(q => {
+      let answer: string | undefined;
+      if (q.options && typeof q.correctAnswer === 'number') {
+        // Multiple Choice
+        answer = q.options[q.correctAnswer];
+      } else if (type === 'True or False' && typeof q.correctAnswer === 'number') {
+        // True or False
+        answer = q.correctAnswer === 0 ? 'True' : 'False';
+      } else if (type === 'Identification' && typeof q.answer === 'string') {
+        // Identification — pass the AI-generated short answer through
+        answer = q.answer;
+      }
+      // Problem Solving / Essay: answer stays undefined
+
+      return {
+        id: q.id,
+        type: type || 'Multiple Choice',
+        text: q.text,
+        options: q.options,
+        correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined,
+        answer,
+      };
+    });
 
     return NextResponse.json({ questions: formattedQuestions });
 

@@ -482,4 +482,43 @@ describe('generateQuizQuestions', () => {
     expect(questions).toHaveLength(1);
     expect(aiMocks.createModel).toHaveBeenCalledWith('qwen3.7-plus');
   });
+
+  // ── Identification answer field ────────────────────────────────────────────
+
+  it('Identification MOCK_TEST returns a non-empty answer string on each question', async () => {
+    const questions = await generateQuizQuestions({
+      topic: 'MOCK_TEST', grade: '7', subject: 'Science', difficulty: 'Average',
+      type: 'Identification', count: 3,
+    });
+
+    expect(questions).toHaveLength(3);
+    for (const q of questions) {
+      expect(typeof q.answer).toBe('string');
+      expect((q.answer as string).trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('Problem Solving MOCK_TEST does NOT include an answer field', async () => {
+    const questions = await generateQuizQuestions({
+      topic: 'MOCK_TEST', grade: '9', subject: 'Math', difficulty: 'Average',
+      type: 'Problem Solving', count: 2,
+    });
+
+    expect(questions).toHaveLength(2);
+    for (const q of questions) {
+      expect(q.answer).toBeUndefined();
+    }
+  });
+
+  it('Essay MOCK_TEST does NOT include an answer field', async () => {
+    const questions = await generateQuizQuestions({
+      topic: 'MOCK_TEST', grade: '10', subject: 'English', difficulty: 'Average',
+      type: 'Essay', count: 2,
+    });
+
+    expect(questions).toHaveLength(2);
+    for (const q of questions) {
+      expect(q.answer).toBeUndefined();
+    }
+  });
 });
