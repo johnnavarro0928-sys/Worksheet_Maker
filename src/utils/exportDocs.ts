@@ -2,6 +2,7 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, T
 import { saveAs } from "file-saver";
 import { WorksheetData } from "../types";
 import { stripAnswerLabelPrefixes } from "./answerOptionLabels";
+import { buildAnswerKey } from "./buildAnswerKey";
 
 // Convert centimeters to pixels (1 cm = 37.79527559 px)
 const cmToPx = (cm: number) => Math.round(cm * 37.79527559);
@@ -225,6 +226,43 @@ export const generateDocx = async (quizData: WorksheetData) => {
       children.push(new Paragraph({ text: "" }));
     });
   });
+
+  // Answer Key page (only if there are answerable MC / T-or-F sections)
+  const answerKeyEntries = buildAnswerKey(quizData);
+  if (answerKeyEntries.length > 0) {
+    // Page break before the answer key heading
+    children.push(
+      new Paragraph({
+        pageBreakBefore: true,
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({ text: "ANSWER KEY", bold: true, color: "1E3A8A" }),
+        ],
+      })
+    );
+
+    answerKeyEntries.forEach((entry) => {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: entry.sectionTitle, bold: true }),
+          ],
+        })
+      );
+
+      entry.lines.forEach((line) => {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: line }),
+            ],
+          })
+        );
+      });
+
+      children.push(new Paragraph({ text: "" }));
+    });
+  }
 
   // Page Margins: Narrow Layout (0.5 in / 720 dxa on all sides)
   const doc = new Document({
