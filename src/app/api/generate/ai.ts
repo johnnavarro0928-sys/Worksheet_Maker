@@ -28,6 +28,7 @@ type GeneratedQuestion = {
   text?: string;
   options?: string[];
   correctAnswer?: number;
+  answer?: string;
 };
 
 type GeneratedQuestionsObject = {
@@ -251,6 +252,12 @@ function getSchemaForType(type: string) {
         }))
       });
     case 'Identification':
+      return z.object({
+        questions: z.array(z.object({
+          text: z.string().describe("The question or problem prompt"),
+          answer: z.string().describe("The single correct short answer or term for this identification item")
+        }))
+      });
     case 'Problem Solving':
     case 'Essay':
       return z.object({
@@ -272,12 +279,14 @@ function getSchemaForType(type: string) {
 
 export async function generateQuizQuestions(params: QuizParams): Promise<Question[]> {
   if (params.topic === 'MOCK_TEST') {
+    const hasCorrectAnswer = params.type === 'Multiple Choice' || params.type === 'True or False';
     return Array.from({ length: params.count }).map((_, i) => ({
       id: `mock-${i}`,
       type: params.type,
       text: formatFormula(`Mock Question ${i + 1} for ${params.subject}?`),
       options: params.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
-      correctAnswer: 0
+      correctAnswer: hasCorrectAnswer ? 0 : undefined,
+      answer: params.type === 'Identification' ? 'Mock Answer' : undefined,
     }));
   }
 
@@ -401,7 +410,8 @@ STRICT ALIGNMENT & FORMATTING RULES:
       type: params.type,
       text: formatFormula(cleanText),
       options: q.options ? q.options.map((opt: string) => formatFormula(opt)) : undefined,
-      correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined
+      correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined,
+      answer: typeof q.answer === 'string' ? formatFormula(q.answer.trim()) : undefined,
     };
   });
 }

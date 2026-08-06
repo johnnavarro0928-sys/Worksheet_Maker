@@ -22,8 +22,10 @@ export function buildAnswerKey(quizData: WorksheetData): AnswerKeySectionEntry[]
         lines.push(`${i + 1}. ${String.fromCharCode(65 + q.correctAnswer)}`);
       } else if (sec.type === 'True or False' && typeof q.correctAnswer === 'number') {
         lines.push(`${i + 1}. ${q.correctAnswer === 0 ? 'True' : 'False'}`);
+      } else if (sec.type === 'Identification' && typeof q.answer === 'string' && q.answer.trim().length > 0) {
+        lines.push(`${i + 1}. ${q.answer.trim()}`);
       }
-      // Identification / Problem Solving / Essay intentionally omitted — no fixed answer generated yet.
+      // Problem Solving / Essay intentionally omitted — no fixed answer generated yet.
     });
 
     if (lines.length > 0) {

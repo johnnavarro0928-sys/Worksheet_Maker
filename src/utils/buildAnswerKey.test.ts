@@ -157,7 +157,6 @@ describe('buildAnswerKey – True or False', () => {
 
 describe('buildAnswerKey – excluded section types', () => {
   it.each([
-    ['Identification'],
     ['Problem Solving'],
     ['Essay'],
   ])('%s sections are fully excluded from the result', (type) => {
@@ -169,6 +168,25 @@ describe('buildAnswerKey – excluded section types', () => {
         questions: [
           { id: 'q1', text: 'Q1', answer: 'some answer' },
           { id: 'q2', text: 'Q2' },
+        ],
+      },
+    ]);
+
+    const result = buildAnswerKey(ws);
+    expect(result).toHaveLength(0);
+  });
+
+  it('Identification with no answer field is excluded (same behaviour as Phase 1 when q.answer absent)', () => {
+    // Identification is only answerable when q.answer is a non-empty string.
+    // When it has no answer, it should not appear in the result.
+    const ws = makeWorksheet([
+      {
+        title: 'Identification Section',
+        type: 'Identification',
+        instructions: '',
+        questions: [
+          { id: 'q1', text: 'Q1' }, // no answer field
+          { id: 'q2', text: 'Q2' }, // no answer field
         ],
       },
     ]);
@@ -254,5 +272,123 @@ describe('buildAnswerKey – edge cases', () => {
     // Cast to satisfy TS so we can test the runtime guard
     const ws = { ...makeWorksheet([]), sections: undefined } as unknown as WorksheetData;
     expect(buildAnswerKey(ws)).toEqual([]);
+  });
+});
+
+// ── Identification ────────────────────────────────────────────────────────────
+
+describe('buildAnswerKey – Identification', () => {
+  it('produces numbered answer lines from q.answer for each valid question', () => {
+    const ws = makeWorksheet([
+      {
+        title: 'Part III – Identification',
+        type: 'Identification',
+        instructions: '',
+        questions: [
+          { id: 'i1', text: 'What is the powerhouse of the cell?', answer: 'Mitochondria' },
+          { id: 'i2', text: 'What planet is closest to the Sun?', answer: 'Mercury' },
+          { id: 'i3', text: 'Who wrote Noli Me Tangere?', answer: 'José Rizal' },
+        ],
+      },
+    ]);
+
+    const result = buildAnswerKey(ws);
+    expect(result).toHaveLength(1);
+    expect(result[0].sectionTitle).toBe('Part III – Identification');
+    expect(result[0].lines).toEqual(['1. Mitochondria', '2. Mercury', '3. José Rizal']);
+  });
+
+  it('trims whitespace from answer text', () => {
+    const ws = makeWorksheet([
+      {
+        title: 'Identification',
+        type: 'Identification',
+        instructions: '',
+        questions: [
+          { id: 'i1', text: 'Q1?', answer: '  Osmosis  ' },
+        ],
+      },
+    ]);
+
+    const result = buildAnswerKey(ws);
+    expect(result[0].lines).toEqual(['1. Osmosis']);
+  });
+
+  it('excludes a question whose answer is an empty string', () => {
+    const ws = makeWorksheet([
+      {
+        title: 'Identification',
+        type: 'Identification',
+        instructions: '',
+        questions: [
+          { id: 'i1', text: 'Q1?', answer: 'Valid Answer' },
+          { id: 'i2', text: 'Q2?', answer: '' },          // empty — excluded
+          { id: 'i3', text: 'Q3?', answer: '   ' },       // whitespace-only — excluded
+        ],
+      },
+    ]);
+
+    const result = buildAnswerKey(ws);
+    expect(result).toHaveLength(1);
+    // Only Q1 appears; positions are still 1-indexed by array index
+    expect(result[0].lines).toEqual(['1. Valid Answer']);
+  });
+
+  it('excludes a question with no answer field at all', () => {
+    const ws = makeWorksheet([
+      {
+        title: 'Identification',
+        type: 'Identification',
+        instructions: '',
+        questions: [
+          { id: 'i1', text: 'Q1?' }, // no answer field
+        ],
+      },
+    ]);
+
+    const result = buildAnswerKey(ws);
+    expect(result).toHaveLength(0);
+  });
+
+  it('Identification appears in mixed worksheet alongside MC and T/F', () => {
+    const ws = makeWorksheet([
+      makeMcqSection([{ correctAnswer: 0 }]),
+      {
+        title: 'Identification Section',
+        type: 'Identification',
+        instructions: '',
+        questions: [
+          { id: 'i1', text: 'Q1?', answer: 'Nucleus' },
+          { id: 'i2', text: 'Q2?', answer: 'Cytoplasm' },
+        ],
+      },
+      makeTofSection([{ correctAnswer: 1 }]),
+    ]);
+
+    const result = buildAnswerKey(ws);
+    expect(result).toHaveLength(3);
+    expect(result[0].lines).toEqual(['1. A']);
+    expect(result[1].sectionTitle).toBe('Identification Section');
+    expect(result[1].lines).toEqual(['1. Nucleus', '2. Cytoplasm']);
+    expect(result[2].lines).toEqual(['1. False']);
+  });
+
+  // Regression: Problem Solving and Essay still fully excluded even after adding Identification
+  it.each([
+    ['Problem Solving'],
+    ['Essay'],
+  ])('%s sections remain fully excluded (regression)', (type) => {
+    const ws = makeWorksheet([
+      {
+        title: `${type} Section`,
+        type,
+        instructions: '',
+        questions: [
+          { id: 'q1', text: 'Q1', answer: 'some answer' },
+        ],
+      },
+    ]);
+
+    expect(buildAnswerKey(ws)).toHaveLength(0);
   });
 });
