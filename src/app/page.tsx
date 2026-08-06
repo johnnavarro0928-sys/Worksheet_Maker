@@ -2,10 +2,11 @@
 
 import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, Plus, BookOpen, Loader2, ArrowUp, ArrowDown, Trash2, CheckCircle2, Bookmark } from "lucide-react";
 import { generateDocx } from "../utils/exportDocs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Question, Section, WorksheetData } from "../types";
 import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
 import { stripAnswerLabelPrefixes } from "../utils/answerOptionLabels";
+import { SavedWorksheet, loadLibrary, saveWorksheet, deleteWorksheet } from "../utils/worksheetLibrary";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
@@ -54,6 +55,13 @@ export default function Home() {
   const [activeSectionId, setActiveSectionId] = useState<string>("sec-1");
   const [isGenerating, setIsGenerating] = useState(false);
   const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
+  const [library, setLibrary] = useState<SavedWorksheet[]>([]);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+  // Load library from localStorage on mount
+  useEffect(() => {
+    setLibrary(loadLibrary());
+  }, []);
 
   // Section Management Handlers
   const handleSelectSection = (sec: Section) => {
@@ -180,6 +188,32 @@ export default function Home() {
       sections: sections
     };
     await generateDocx(fullWorksheet, includeAnswerKey);
+  };
+
+  const handleSave = () => {
+    const fullWorksheet: WorksheetData = { ...quizData, sections };
+    const updated = saveWorksheet(fullWorksheet);
+    setLibrary(updated);
+    alert(`Worksheet "${fullWorksheet.title}" saved to your library.`);
+  };
+
+  const handleLoadFromLibrary = (entry: SavedWorksheet) => {
+    setQuizData({
+      title: entry.worksheet.title,
+      teacher: entry.worksheet.teacher,
+      school: entry.worksheet.school,
+      schoolYear: entry.worksheet.schoolYear ?? '',
+      term: entry.worksheet.term ?? '',
+      instructions: entry.worksheet.instructions,
+    });
+    setSections(entry.worksheet.sections);
+    setActiveSectionId(entry.worksheet.sections[0]?.id ?? '');
+    setIsLibraryOpen(false);
+  };
+
+  const handleDeleteFromLibrary = (id: string) => {
+    const updated = deleteWorksheet(id);
+    setLibrary(updated);
   };
 
   const handleGenerate = async () => {
@@ -447,12 +481,12 @@ export default function Home() {
             <button className="neu-button-solid bg-ios-green">
               <Eye size={16} /> Preview
             </button>
-            <button className="neu-button-solid bg-ios-gray">
+            <button className="neu-button-solid bg-ios-gray" onClick={() => setIsLibraryOpen(true)}>
               <Library size={16} /> Library
             </button>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="neu-button-solid bg-ios-orange">
+            <button className="neu-button-solid bg-ios-orange" onClick={handleSave}>
               <Save size={16} /> Save
             </button>
             <button className="neu-button-solid bg-ios-gray">
@@ -710,6 +744,87 @@ export default function Home() {
           </footer>
         </section>
       </main>
+
+      {/* Library Modal */}
+      {isLibraryOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => setIsLibraryOpen(false)}
+        >
+          <div
+            className="neu-flat"
+            style={{
+              width: 'min(680px, 92vw)', maxHeight: '80vh',
+              borderRadius: '20px', padding: '28px 28px 20px',
+              display: 'flex', flexDirection: 'column', gap: '16px',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Library size={18} /> Saved Worksheets
+              </h2>
+              <button
+                className="neu-button"
+                style={{ fontSize: '13px', padding: '6px 14px' }}
+                onClick={() => setIsLibraryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            {library.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '24px 0' }}>
+                No saved worksheets yet.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {library.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="neu-pressed"
+                    style={{
+                      borderRadius: '12px', padding: '14px 16px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {entry.worksheet.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {new Date(entry.savedAt).toLocaleString()}
+                        {entry.worksheet.school ? ` · ${entry.worksheet.school}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      <button
+                        className="neu-button-solid bg-ios-blue"
+                        style={{ fontSize: '12px', padding: '6px 12px' }}
+                        onClick={() => handleLoadFromLibrary(entry)}
+                      >
+                        Load
+                      </button>
+                      <button
+                        className="neu-button-solid bg-ios-red"
+                        style={{ fontSize: '12px', padding: '6px 12px' }}
+                        onClick={() => handleDeleteFromLibrary(entry.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Animation Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
