@@ -84,11 +84,20 @@ afterEach(() => {
 
 describe('requestWorksheetAiProvider', () => {
   it('sends one primary OpenAI-compatible request and returns parsed JSON', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(completion({ answer: 42 }));
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    let now = 100;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => {
+      now = 137.8;
+      return completion({ answer: 42 });
+    });
 
     await expect(requestWorksheetAiProvider(prompt, dualConfig({
       primary: { temperature: 0 },
-    }), { fetch })).resolves.toEqual({ answer: 42 });
+    }), {
+      fetch,
+      now: () => now,
+      startedAt: 100,
+    })).resolves.toEqual({ answer: 42 });
 
     expect(fetch).toHaveBeenCalledTimes(1);
     const call = fetch.mock.calls[0];
@@ -104,6 +113,55 @@ describe('requestWorksheetAiProvider', () => {
       response_format: { type: 'json_object' },
       temperature: 0,
     });
+    expect(info).toHaveBeenCalledWith('[worksheet-ai-provider]', {
+      alias: 'primary',
+      attempt: 1,
+      durationMs: 37,
+      failureKind: 'success',
+    });
+  });
+
+  it('emits secondary success telemetry after a primary timeout', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    let now = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockImplementationOnce(async () => {
+        now = 1000;
+        return completion({ provider: 'primary' });
+      })
+      .mockImplementationOnce(async () => {
+        now = 1055;
+        return completion({ provider: 'secondary' });
+      });
+
+    await expect(requestWorksheetAiProvider(prompt, dualConfig({
+      totalTimeoutMs: 10000,
+      primary: { timeoutMs: 1000 },
+      secondary: { timeoutMs: 1000 },
+    }), {
+      fetch,
+      now: () => now,
+      startedAt: 0,
+    })).resolves.toEqual({ provider: 'secondary' });
+
+    expect([0, 1].map((index) => requestBody(fetch.mock.calls[index]).model)).toEqual([
+      'primary-model',
+      'secondary-model',
+    ]);
+    expect(info.mock.calls).toEqual([
+      ['[worksheet-ai-provider]', {
+        alias: 'primary',
+        attempt: 1,
+        durationMs: 1000,
+        failureKind: 'timeout',
+      }],
+      ['[worksheet-ai-provider]', {
+        alias: 'secondary',
+        attempt: 2,
+        durationMs: 55,
+        failureKind: 'success',
+      }],
+    ]);
   });
 
   it.each([408, 429, 500, 503])('advances from retryable HTTP %i to secondary', async (status) => {
@@ -127,6 +185,7 @@ describe('requestWorksheetAiProvider', () => {
   });
 
   it.each([401, 403, 404])('treats HTTP %i as terminal without dispatching secondary', async (status) => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const fetch = vi.fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(response('private terminal body', status))
       .mockResolvedValueOnce(completion({ should: 'not-run' }));
@@ -138,6 +197,13 @@ describe('requestWorksheetAiProvider', () => {
 
     expect(error.status).toBe(status);
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(info).toHaveBeenCalledWith('[worksheet-ai-provider]', expect.objectContaining({
+      alias: 'primary',
+      attempt: 1,
+      durationMs: expect.any(Number),
+      failureKind: 'terminal_http',
+      status,
+    }));
   });
 
   it('does not follow a redirect or treat it as a retryable failure', async () => {
@@ -294,6 +360,46 @@ describe('requestWorksheetAiProvider', () => {
 
     await expect(request).resolves.toEqual({ provider: 'secondary' });
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs only bounded metadata for a timeout', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    let now = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockImplementationOnce(async () => {
+        now = 1000;
+        return completion({ worksheet: 'private worksheet output sentinel' });
+      })
+      .mockImplementationOnce(async () => {
+        now = 1050;
+        return response('private secondary response body', 401);
+      });
+
+    await expectProviderError(
+      requestWorksheetAiProvider(prompt, dualConfig({
+        totalTimeoutMs: 10000,
+        primary: { timeoutMs: 1000 },
+        secondary: { timeoutMs: 1000 },
+      }), {
+        fetch,
+        now: () => now,
+        startedAt: 0,
+      }),
+      'AI_PROVIDER_HTTP_ERROR',
+    );
+
+    expect(info.mock.calls[0]).toEqual(['[worksheet-ai-provider]', {
+      alias: 'primary',
+      attempt: 1,
+      durationMs: 1000,
+      failureKind: 'timeout',
+    }]);
+    const logs = JSON.stringify(info.mock.calls);
+    expect(logs).not.toContain(primaryKey);
+    expect(logs).not.toContain(secondaryKey);
+    expect(logs).not.toContain(prompt);
+    expect(logs).not.toContain('private worksheet output sentinel');
+    expect(logs).not.toContain('private secondary response body');
   });
 
   it('bounds a stalled response body and advances to secondary', async () => {

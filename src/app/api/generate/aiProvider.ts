@@ -156,15 +156,17 @@ function safeError(
   return new WorksheetAiProviderError('AI_PROVIDER_EXHAUSTED', attempts, { alias });
 }
 
-function logFailure(
+function logAttempt(
   alias: 'primary' | 'secondary',
   attempt: number,
-  result: Exclude<AttemptResult, { kind: 'success' }>,
+  durationMs: number,
+  result: AttemptResult,
 ): void {
   const status = 'status' in result ? result.status : undefined;
   console.info('[worksheet-ai-provider]', {
     alias,
     attempt,
+    durationMs,
     failureKind: result.kind,
     ...(status === undefined ? {} : { status }),
   });
@@ -328,8 +330,8 @@ export async function requestWorksheetAiProvider(
     let canRetryMalformed = true;
 
     while (attempts < MAX_PHYSICAL_ATTEMPTS) {
-      const now = dependencies.now();
-      if (!remainingWindowFits(config, index, now, provider.timeoutMs, deadline)) {
+      const attemptStartedAt = dependencies.now();
+      if (!remainingWindowFits(config, index, attemptStartedAt, provider.timeoutMs, deadline)) {
         blockedByBudget = true;
         if (attempts === 0) {
           throw new WorksheetAiProviderError('AI_PROVIDER_BUDGET_EXCEEDED', attempts, { alias });
@@ -338,11 +340,12 @@ export async function requestWorksheetAiProvider(
       }
 
       attempts += 1;
-      const result = await attempt(provider, prompt, dependencies, now + provider.timeoutMs);
+      const result = await attempt(provider, prompt, dependencies, attemptStartedAt + provider.timeoutMs);
+      const durationMs = Math.max(0, Math.floor(dependencies.now() - attemptStartedAt));
       lastResult = result;
+      logAttempt(alias, attempts, durationMs, result);
       if (result.kind === 'success') return result.value;
 
-      logFailure(alias, attempts, result);
       if (result.kind === 'safety' || result.kind === 'terminal_http') {
         throw safeError(result, alias, attempts);
       }
