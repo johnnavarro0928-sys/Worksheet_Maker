@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as generateWorksheet } from "../api/generate/route";
 
 const sharedSecret = "test-shared-secret";
@@ -53,6 +53,7 @@ describe("Worksheet Maker App Store SSO", () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
   });
 
   it("exchanges a valid App Store token for an HttpOnly session cookie and safe redirect", async () => {
@@ -109,6 +110,31 @@ describe("Worksheet Maker App Store SSO", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ error: "no_session" });
+  });
+
+  it("checks the session before resolving dual provider configuration or dispatching providers", async () => {
+    process.env.WORKSHEET_MAKER_AI_MODE = "dual";
+    const providerFetch = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", providerFetch);
+
+    const response = await generateWorksheet(
+      new Request("https://worksheetmaker.sayuna-ai.com/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: "Photosynthesis",
+          grade: "Grade 7",
+          subject: "Science",
+          type: "Multiple Choice",
+          difficulty: "Average",
+          count: 1,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: "no_session" });
+    expect(providerFetch).not.toHaveBeenCalled();
   });
 
   it("redirects direct app access back to the App Store when no session exists", async () => {

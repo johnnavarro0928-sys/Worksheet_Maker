@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
+
+const originalEnv = { ...process.env };
+
+function request(body: Record<string, unknown>) {
+  return new Request('http://localhost/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 
 /**
  * Route-level test proving the /api/generate response includes correctAnswer
@@ -8,6 +18,15 @@ import { POST } from './route';
  * isAuthEnabled logic).
  */
 describe('/api/generate route', () => {
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it('returns correctAnswer in JSON response for Multiple Choice questions', async () => {
     const response = await POST(
@@ -162,5 +181,67 @@ describe('/api/generate route', () => {
     for (const q of data.questions) {
       expect(q.answer).toBeUndefined();
     }
+  });
+
+  it('rejects request-body provider selection without rejecting unrelated worksheet fields', async () => {
+    const rejected = await POST(request({
+      topic: 'MOCK_TEST',
+      grade: 'Grade 7',
+      subject: 'Science',
+      type: 'Multiple Choice',
+      difficulty: 'Average',
+      count: 1,
+      model: 'attacker-selected-model',
+    }));
+    const accepted = await POST(request({
+      topic: 'MOCK_TEST',
+      grade: 'Grade 7',
+      subject: 'Science',
+      type: 'Multiple Choice',
+      difficulty: 'Average',
+      count: 1,
+      worksheetLayout: 'teacher-preview',
+    }));
+
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toEqual({ error: 'Provider selection is not allowed.' });
+    expect(accepted.status).toBe(200);
+  });
+
+  it('returns and logs only a stable error when a dual provider fails', async () => {
+    process.env.WORKSHEET_MAKER_AI_MODE = 'dual';
+    process.env.WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS = '52000';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_BASE_URL = 'https://primary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_API_KEY = 'primary-route-secret';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_MODEL = 'primary-model';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_AUTH_SCHEME = 'bearer';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = '15000';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_BASE_URL = 'https://secondary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_API_KEY = 'secondary-route-secret';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_MODEL = 'secondary-model';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_AUTH_SCHEME = 'api-key';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = '30000';
+
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response('private provider response body', { status: 401 }),
+    ));
+
+    const response = await POST(request({
+      topic: 'Photosynthesis',
+      grade: 'Grade 7',
+      subject: 'Science',
+      type: 'Multiple Choice',
+      difficulty: 'Average',
+      count: 1,
+    }));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'Failed to generate quiz' });
+    const logs = JSON.stringify([...error.mock.calls, ...info.mock.calls]);
+    expect(logs).not.toContain('primary-route-secret');
+    expect(logs).not.toContain('secondary-route-secret');
+    expect(logs).not.toContain('private provider response body');
   });
 });

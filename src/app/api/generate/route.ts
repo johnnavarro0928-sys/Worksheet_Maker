@@ -5,18 +5,45 @@ import { requireExistingSession } from '../_lib/sessionAuth';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
+const PROVIDER_SELECTION_REQUEST_FIELDS = new Set([
+  'provider',
+  'model',
+  'baseurl',
+  'apikey',
+  'authscheme',
+  'aiprovider',
+  'aimodel',
+  'aibaseurl',
+  'aiapikey',
+  'aiauthscheme',
+]);
+
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const parsed = Number.parseInt(String(value), 10);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function hasProviderSelectionOverride(body: unknown): boolean {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+
+  return Object.keys(body).some((key) => {
+    const normalized = key.replace(/[_-]/g, '').toLowerCase();
+    return normalized.startsWith('worksheetmakerai')
+      || PROVIDER_SELECTION_REQUEST_FIELDS.has(normalized);
+  });
+}
+
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   const sessionError = await requireExistingSession(req);
   if (sessionError) return sessionError;
 
   try {
     const body = await req.json();
+    if (hasProviderSelectionOverride(body)) {
+      return NextResponse.json({ error: 'Provider selection is not allowed.' }, { status: 400 });
+    }
     const {
       topic,
       competency,
@@ -46,7 +73,7 @@ export async function POST(req: Request) {
       avoidQuestions: Array.isArray(avoidQuestions) ? avoidQuestions : undefined,
       totalCount: parseOptionalNumber(totalCount),
       batchStart: parseOptionalNumber(batchStart),
-    });
+    }, { startedAt });
 
     // Map output to the frontend expected format
     const formattedQuestions = questions.map(q => {
@@ -75,9 +102,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ questions: formattedQuestions });
 
-  } catch (error: unknown) {
-    console.error('Error generating quiz:', error);
-    const message = error instanceof Error ? error.message : 'Failed to generate quiz';
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    console.error('[worksheet-ai]', { failureKind: 'generation_failed' });
+    return NextResponse.json({ error: 'Failed to generate quiz' }, { status: 500 });
   }
 }

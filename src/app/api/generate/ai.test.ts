@@ -46,18 +46,19 @@ describe('generateQuizQuestions', () => {
   afterEach(() => {
     process.env = { ...originalEnv };
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('throws an error if no API key is provided', async () => {
     await expect(generateQuizQuestions({
       topic: 'test', grade: '10', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 5
-    }, 'openai/gpt-4o', '')).rejects.toThrow('OPENROUTER_API_KEY required for OpenRouter provider');
+    })).rejects.toThrow('AI generation failed.');
   });
 
   it('returns mock questions if topic is "MOCK_TEST"', async () => {
     const questions = await generateQuizQuestions({
       topic: 'MOCK_TEST', grade: '10', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 2
-    }, 'model', 'fake-key');
+    });
     expect(questions).toHaveLength(2);
     expect(questions[0].id).toContain('mock-');
   });
@@ -481,6 +482,169 @@ describe('generateQuizQuestions', () => {
 
     expect(questions).toHaveLength(1);
     expect(aiMocks.createModel).toHaveBeenCalledWith('qwen3.7-plus');
+  });
+
+  it('uses the dual transport while preserving the worksheet prompt and post-processing', async () => {
+    process.env.WORKSHEET_MAKER_AI_MODE = 'dual';
+    process.env.WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS = '52000';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_BASE_URL = 'https://primary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_API_KEY = 'primary-test-secret';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_MODEL = 'primary-model';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_AUTH_SCHEME = 'bearer';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = '15000';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_BASE_URL = 'https://secondary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_API_KEY = 'secondary-test-secret';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_MODEL = 'secondary-model';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_AUTH_SCHEME = 'api-key';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = '30000';
+
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            questions: [{
+              text: 'Q1: What is H₂O?',
+              options: ['A. Water', 'B. Salt', 'C. Oxygen', 'D. Carbon dioxide'],
+              correctAnswer: 0,
+            }],
+          }),
+        },
+      }],
+    })));
+    vi.stubGlobal('fetch', fetch);
+
+    const questions = await generateQuizQuestions({
+      topic: 'Water',
+      grade: 'Grade 5',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+      language: 'Filipino',
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const request = JSON.parse(String((fetch.mock.calls[0][1] as RequestInit).body));
+    expect(request.model).toBe('primary-model');
+    expect(request.response_format).toEqual({ type: 'json_object' });
+    expect(request.messages[0].content).toContain('- Output Language: Filipino');
+    expect(request.messages[0].content).toContain('OUTPUT LANGUAGE INSTRUCTIONS (FILIPINO)');
+    expect(request.messages[0].content).toContain('Return valid JSON only. Do not include Markdown, code fences, commentary, or prose.');
+    expect(request.messages[0].content).toContain('The top-level value must be an object in this form: {"questions":[...]}.');
+    expect(request.messages[0].content).toContain('The "questions" value must be an array.');
+    expect(request.messages[0].content).toContain('Each item in "questions" must contain "text", "options" (exactly four strings), and "correctAnswer" (an index from 0 to 3).');
+    expect(questions[0].text).toBe('What is H₂O?');
+    expect(questions[0].options).toEqual(['Water', 'Salt', 'Oxygen', 'Carbon dioxide']);
+  });
+
+  it('sends the Identification JSON contract only in dual mode', async () => {
+    process.env.WORKSHEET_MAKER_AI_MODE = 'dual';
+    process.env.WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS = '52000';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_BASE_URL = 'https://primary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_API_KEY = 'primary-test-secret';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_MODEL = 'primary-model';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_AUTH_SCHEME = 'bearer';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = '15000';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_BASE_URL = 'https://secondary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_API_KEY = 'secondary-test-secret';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_MODEL = 'secondary-model';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_AUTH_SCHEME = 'api-key';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = '30000';
+
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ questions: [{ text: 'What is H₂O?', answer: 'Water' }] }) } }],
+    })));
+    vi.stubGlobal('fetch', fetch);
+
+    const dualQuestions = await generateQuizQuestions({
+      topic: 'Water',
+      grade: 'Grade 5',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Identification',
+      count: 1,
+    });
+
+    const dualRequest = JSON.parse(String((fetch.mock.calls[0][1] as RequestInit).body));
+    const dualPrompt = dualRequest.messages[0].content;
+    expect(dualPrompt).toContain('Return valid JSON only. Do not include Markdown, code fences, commentary, or prose.');
+    expect(dualPrompt).toContain('The top-level value must be an object in this form: {"questions":[...]}.');
+    expect(dualPrompt).toContain('The "questions" value must be an array.');
+    expect(dualPrompt).toContain('Each item in "questions" must contain "text" and "answer" as strings.');
+    expect(dualQuestions[0].answer).toBe('Water');
+
+    process.env.WORKSHEET_MAKER_AI_MODE = 'legacy';
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'What is H₂O?', answer: 'Water' }] },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Water',
+      grade: 'Grade 5',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Identification',
+      count: 1,
+    });
+
+    const legacyPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(legacyPrompt).not.toContain('DUAL-PROVIDER RESPONSE FORMAT');
+    expect(legacyPrompt).not.toContain('Return valid JSON only.');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a dual provider response that fails the worksheet schema as terminal', async () => {
+    process.env.WORKSHEET_MAKER_AI_MODE = 'dual';
+    process.env.WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS = '52000';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_BASE_URL = 'https://primary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_API_KEY = 'primary-test-secret';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_MODEL = 'primary-model';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_AUTH_SCHEME = 'bearer';
+    process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = '15000';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_BASE_URL = 'https://secondary.example.test/v1';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_API_KEY = 'secondary-test-secret';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_MODEL = 'secondary-model';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_AUTH_SCHEME = 'api-key';
+    process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = '30000';
+
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ questions: [{ text: 'Missing options and answer index' }] }) } }],
+    })));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(generateQuizQuestions({
+      topic: 'Water',
+      grade: 'Grade 5',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    })).rejects.toThrow('Worksheet AI response did not match the expected worksheet format.');
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps legacy failure messages and logs free of raw provider errors', async () => {
+    process.env.WORKSHEET_MAKER_AI_MODE = 'legacy';
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockRejectedValue(new Error('private upstream exception sentinel'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(generateQuizQuestions({
+      topic: 'Water',
+      grade: 'Grade 5',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    })).rejects.toThrow('AI generation failed.');
+
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private upstream exception sentinel');
   });
 
   // ── Identification answer field ────────────────────────────────────────────

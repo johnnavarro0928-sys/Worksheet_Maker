@@ -9,6 +9,8 @@ import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
 import { stripAnswerLabelPrefixes } from '../../../utils/answerOptionLabels';
+import { requestWorksheetAiProvider } from './aiProvider';
+import { resolveWorksheetMakerAiProviderConfig } from './aiProviderConfig';
 
 const DEFAULT_MODEL_TIMEOUT_MS = 20000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
@@ -55,6 +57,10 @@ export interface QuizParams {
   avoidQuestions?: string[];
 }
 
+export interface GenerateQuizQuestionsOptions {
+  startedAt?: number;
+}
+
 function getPromptListItem(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, ' ');
   return trimmed.length > 180 ? `${trimmed.slice(0, 177)}...` : trimmed;
@@ -92,17 +98,6 @@ function getModelTimeoutMs(count: number = 5): number {
   }
   const calculated = Math.round(12000 + count * 1800);
   return Math.max(MIN_MODEL_TIMEOUT_MS, Math.min(MAX_MODEL_TIMEOUT_MS, calculated));
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    if (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted')) {
-      return 'The AI request timed out before completing. Please try generating fewer items or retry.';
-    }
-    return error.message;
-  }
-  if (typeof error === 'string') return error;
-  return String(error || 'unknown_error');
 }
 
 function isReasoningModel(modelName: string): boolean {
@@ -277,7 +272,30 @@ function getSchemaForType(type: string) {
   }
 }
 
-export async function generateQuizQuestions(params: QuizParams): Promise<Question[]> {
+function getDualModeResponseFormatRules(type: string): string {
+  const responseContract = `DUAL-PROVIDER RESPONSE FORMAT:
+- Return valid JSON only. Do not include Markdown, code fences, commentary, or prose.
+- The top-level value must be an object in this form: {"questions":[...]}.
+- The "questions" value must be an array. Do not return a different top-level object or an array by itself.`;
+
+  switch (type) {
+    case 'True or False':
+      return `${responseContract}\n- Each item in "questions" must contain "text" and "correctAnswer" (0 for True or 1 for False).`;
+    case 'Identification':
+      return `${responseContract}\n- Each item in "questions" must contain "text" and "answer" as strings.`;
+    case 'Problem Solving':
+    case 'Essay':
+      return `${responseContract}\n- Each item in "questions" must contain "text" as a string.`;
+    case 'Multiple Choice':
+    default:
+      return `${responseContract}\n- Each item in "questions" must contain "text", "options" (exactly four strings), and "correctAnswer" (an index from 0 to 3).`;
+  }
+}
+
+export async function generateQuizQuestions(
+  params: QuizParams,
+  options: GenerateQuizQuestionsOptions = {},
+): Promise<Question[]> {
   if (params.topic === 'MOCK_TEST') {
     const hasCorrectAnswer = params.type === 'Multiple Choice' || params.type === 'True or False';
     return Array.from({ length: params.count }).map((_, i) => ({
@@ -289,8 +307,6 @@ export async function generateQuizQuestions(params: QuizParams): Promise<Questio
       answer: params.type === 'Identification' ? 'Mock Answer' : undefined,
     }));
   }
-
-  const modelConfigs = getModelAttemptConfigs();
 
   const schema = getSchemaForType(params.type);
 
@@ -348,50 +364,64 @@ STRICT ALIGNMENT & FORMATTING RULES:
 7. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.
 8. For Multiple Choice options, do NOT include option letters or labels inside the option text (such as 'A.', 'B)', 'Option C:', or 'D -'). Return ONLY the clean answer choice text.`;
 
+  const config = resolveWorksheetMakerAiProviderConfig();
   let object: GeneratedQuestionsObject | undefined;
-  let lastError: unknown;
-  const modelTimeoutMs = getModelTimeoutMs(params.count);
-  const startTime = Date.now();
-  const GLOBAL_MAX_TIME_MS = 52000;
 
-  for (let i = 0; i < modelConfigs.length; i++) {
-    const elapsed = Date.now() - startTime;
-    if (elapsed > GLOBAL_MAX_TIME_MS) {
-      console.warn(`[AI Generator] Reached global generation time budget (${GLOBAL_MAX_TIME_MS}ms). Exiting fallback loop.`);
-      break;
+  if (config.mode === 'dual') {
+    const providerObject = await requestWorksheetAiProvider(`${prompt}\n\n${getDualModeResponseFormatRules(params.type)}`, config, {
+      startedAt: options.startedAt,
+    });
+    const parsed = schema.safeParse(providerObject);
+    if (!parsed.success) {
+      throw new Error('Worksheet AI response did not match the expected worksheet format.');
+    }
+    object = parsed.data as GeneratedQuestionsObject;
+  } else {
+    const modelConfigs = getModelAttemptConfigs();
+    const modelTimeoutMs = getModelTimeoutMs(params.count);
+    const startTime = Date.now();
+    const GLOBAL_MAX_TIME_MS = 52000;
+
+    for (let i = 0; i < modelConfigs.length; i++) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > GLOBAL_MAX_TIME_MS) {
+        console.warn('[worksheet-ai]', { failureKind: 'legacy_total_timeout' });
+        break;
+      }
+
+      const remainingMs = GLOBAL_MAX_TIME_MS - elapsed;
+      const attemptTimeoutMs = Math.min(modelTimeoutMs, remainingMs);
+      if (attemptTimeoutMs < 2000) break;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
+
+      try {
+        const model = getProviderModel(modelConfigs[i].providerName, modelConfigs[i].modelName);
+        const response = await generateObject({
+          model: model,
+          schema: schema,
+          prompt: prompt,
+          ...(isReasoningModel(modelConfigs[i].modelName) ? {} : { temperature: 0.2 }),
+          abortSignal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        object = response.object as GeneratedQuestionsObject;
+        break;
+      } catch {
+        clearTimeout(timeoutId);
+        console.warn('[worksheet-ai]', {
+          attempt: i + 1,
+          failureKind: 'legacy_provider_failure',
+        });
+      }
+      if (object?.questions) break;
     }
 
-    const remainingMs = GLOBAL_MAX_TIME_MS - elapsed;
-    const attemptTimeoutMs = Math.min(modelTimeoutMs, remainingMs);
-    if (attemptTimeoutMs < 2000) break;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), attemptTimeoutMs);
-
-    try {
-      const model = getProviderModel(modelConfigs[i].providerName, modelConfigs[i].modelName);
-      const response = await generateObject({
-        model: model,
-        schema: schema,
-        prompt: prompt,
-        ...(isReasoningModel(modelConfigs[i].modelName) ? {} : { temperature: 0.2 }),
-        abortSignal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      object = response.object as GeneratedQuestionsObject;
-      console.info(`[AI Generator] Successfully generated ${object.questions?.length || 0} questions using model ${modelConfigs[i].providerName}:${modelConfigs[i].modelName}`);
-      break;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      const modelConfig = modelConfigs[i];
-      console.warn(`AI model ${modelConfig.providerName}:${modelConfig.modelName} failed: ${getErrorMessage(error)}`);
-      lastError = error;
-    }
-    if (object?.questions) break;
   }
 
-  if (!object || !object.questions) {
-    throw new Error(`All ${modelConfigs.length} configured AI models failed to generate questions. Error: ${getErrorMessage(lastError)}`);
+  if (!object?.questions) {
+    throw new Error('AI generation failed.');
   }
 
   const generatedQuestions = object.questions.map((question) => ({
