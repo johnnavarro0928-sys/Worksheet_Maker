@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WorksheetData } from '../types';
 import { LibraryStorage, SavedWorksheet, deleteWorksheet, loadLibrary, saveWorksheet } from './worksheetLibrary';
+import type { TosPlan } from './tosPlan';
 
 /** Plain in-memory storage — no jsdom, works in Node environment. */
 function makeStorage(): LibraryStorage {
@@ -30,6 +31,29 @@ const sampleWorksheet: WorksheetData = {
       ],
     },
   ],
+};
+
+const sampleTosPlan: TosPlan = {
+  version: 1,
+  rows: [{
+    id: 'tos-row-1',
+    competency: 'Explain photosynthesis',
+    objective: 'Describe the process',
+    allocations: { Remembering: 1 },
+  }],
+};
+
+const tosWorksheet: WorksheetData = {
+  ...sampleWorksheet,
+  sections: sampleWorksheet.sections.map(section => ({
+    ...section,
+    tosPlan: sampleTosPlan,
+    questions: section.questions.map(question => ({
+      ...question,
+      tosRowId: 'tos-row-1',
+      tosCognitiveLevel: 'Remembering',
+    })),
+  })),
 };
 
 describe('worksheetLibrary', () => {
@@ -111,5 +135,29 @@ describe('worksheetLibrary', () => {
     saveWorksheet(sampleWorksheet, storage);
     const [entry] = loadLibrary(storage) as SavedWorksheet[];
     expect(entry.worksheet).toEqual(sampleWorksheet);
+  });
+
+  it('round-trips section-level TOS plans and question metadata unchanged', () => {
+    const storage = makeStorage();
+    saveWorksheet(tosWorksheet, storage);
+
+    const [entry] = loadLibrary(storage) as SavedWorksheet[];
+
+    expect(entry.worksheet).toEqual(tosWorksheet);
+    expect(entry.worksheet.sections[0].tosPlan).toEqual(sampleTosPlan);
+    expect(entry.worksheet.sections[0].questions[0]).toMatchObject({
+      tosRowId: 'tos-row-1',
+      tosCognitiveLevel: 'Remembering',
+    });
+  });
+
+  it('loads legacy sections without a tosPlan', () => {
+    const storage = makeStorage();
+    saveWorksheet(sampleWorksheet, storage);
+
+    const [entry] = loadLibrary(storage) as SavedWorksheet[];
+
+    expect(entry.worksheet.sections[0].tosPlan).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(entry.worksheet.sections[0], 'tosPlan')).toBe(false);
   });
 });

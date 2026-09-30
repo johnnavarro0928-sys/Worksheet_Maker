@@ -134,6 +134,72 @@ describe('generateQuizQuestions', () => {
     expect(calledPrompt).toContain('Which pigment helps plants absorb light?');
   });
 
+  it('requires the exact cognitive level when one is assigned', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [{
+          text: 'Which evidence best supports the conclusion?',
+          options: ['Evidence A', 'Evidence B', 'Evidence C', 'Evidence D'],
+          correctAnswer: 0,
+        }],
+      },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Scientific evidence',
+      competency: 'Evaluate evidence',
+      objective: 'Judge the strength of evidence',
+      grade: 'Grade 8',
+      subject: 'Science',
+      difficulty: 'Difficult',
+      type: 'Multiple Choice',
+      count: 1,
+      cognitiveLevel: 'Evaluating',
+    });
+
+    const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(calledPrompt).toContain('COGNITIVE LEVEL ASSIGNMENT');
+    expect(calledPrompt).toContain('exactly the assigned cognitive level: Evaluating');
+    expect(calledPrompt).toContain('Learning Competency: Evaluate evidence');
+    expect(calledPrompt).toContain('Specific Objective: Judge the strength of evidence');
+  });
+
+  it('keeps the existing direct prompt contract when cognitiveLevel is omitted', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [{
+          text: 'What is a producer?',
+          options: ['A plant', 'A consumer', 'A decomposer', 'A predator'],
+          correctAnswer: 0,
+        }],
+      },
+    });
+
+    await generateQuizQuestions({
+      topic: 'Ecosystems',
+      competency: 'Identify ecosystem components',
+      objective: 'Name a producer',
+      grade: 'Grade 7',
+      subject: 'Science',
+      difficulty: 'Average',
+      type: 'Multiple Choice',
+      count: 1,
+    });
+
+    const calledPrompt = aiMocks.generateObject.mock.calls[0][0].prompt;
+    expect(calledPrompt).toContain('- Grade Level: Grade 7');
+    expect(calledPrompt).toContain('- Target Difficulty Level: Average');
+    expect(calledPrompt).toContain('Every question MUST strictly evaluate the specified Learning Competencies');
+    expect(calledPrompt).toContain('For Multiple Choice, distribute correct answer letters A-D');
+    expect(calledPrompt).not.toContain('COGNITIVE LEVEL ASSIGNMENT');
+  });
+
   it('strips answer labels from generated multiple-choice options', async () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.ACTIVE_AI_PROVIDER = 'openai';

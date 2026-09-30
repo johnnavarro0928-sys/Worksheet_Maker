@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as ai from './ai';
 import { POST } from './route';
 
+vi.mock('./ai', async () => {
+  const actual = await vi.importActual<typeof import('./ai')>('./ai');
+  return {
+    ...actual,
+    generateQuizQuestions: vi.fn(actual.generateQuizQuestions),
+  };
+});
+
 const originalEnv = { ...process.env };
+const generateQuizQuestionsMock = vi.mocked(ai.generateQuizQuestions);
 
 function request(body: Record<string, unknown>) {
   return new Request('http://localhost/api/generate', {
@@ -9,6 +19,29 @@ function request(body: Record<string, unknown>) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+function validTosPlan() {
+  return {
+    version: 1,
+    rows: [
+      {
+        id: 'tos-row-1',
+        competency: 'Classify matter by observable properties',
+        objective: 'Connect observations to a classification',
+        allocations: {
+          Remembering: 1,
+          Applying: 1,
+        },
+      },
+    ],
+  };
+}
+
+function stubProviderCalls() {
+  const fetchMock = vi.fn<typeof globalThis.fetch>();
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
 }
 
 /**
@@ -20,6 +53,7 @@ function request(body: Record<string, unknown>) {
 describe('/api/generate route', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -46,6 +80,7 @@ describe('/api/generate route', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(generateQuizQuestionsMock).toHaveBeenCalledTimes(1);
     const data = await response.json();
 
     expect(data.questions).toHaveLength(3);
@@ -56,12 +91,270 @@ describe('/api/generate route', () => {
     expect(q).toHaveProperty('correctAnswer');
     expect(typeof q.correctAnswer).toBe('number');
     expect(q.answer).toBe(q.options[q.correctAnswer]);
+    expect(q.tosRowId).toBeUndefined();
+    expect(q.tosCognitiveLevel).toBeUndefined();
 
     // Verify all questions maintain the invariant
     for (const question of data.questions) {
       expect(typeof question.correctAnswer).toBe('number');
       expect(question.answer).toBe(question.options[question.correctAnswer]);
     }
+  });
+
+  it('does not expose TOS metadata in direct-generation responses', async () => {
+    generateQuizQuestionsMock.mockResolvedValueOnce([{
+      id: 'direct-q-with-tos-metadata',
+      type: 'Multiple Choice',
+      text: 'Which item is direct?',
+      options: ['Correct', 'Wrong B', 'Wrong C', 'Wrong D'],
+      correctAnswer: 0,
+      tosRowId: 'secret-row',
+      tosCognitiveLevel: 'Remembering',
+    }]);
+
+    const response = await POST(request({
+      topic: 'Direct topic',
+      type: 'Multiple Choice',
+      count: 1,
+      generationMode: 'direct',
+    }));
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.questions[0].tosRowId).toBeUndefined();
+    expect(data.questions[0].tosCognitiveLevel).toBeUndefined();
+  });
+
+  it('rejects an invalid generation mode with a stable generic error', async () => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'MOCK_TEST',
+      type: 'Multiple Choice',
+      count: 2,
+      generationMode: 'unsupported',
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects direct mode requests that contain a TOS plan', async () => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'MOCK_TEST',
+      type: 'Multiple Choice',
+      count: 2,
+      generationMode: 'direct',
+      tosPlan: validTosPlan(),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects TOS mode when the plan is missing', async () => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'MOCK_TEST',
+      type: 'Multiple Choice',
+      count: 2,
+      generationMode: 'tos',
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects TOS mode for non-Multiple Choice requests', async () => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'MOCK_TEST',
+      type: 'Essay',
+      count: 2,
+      generationMode: 'tos',
+      tosPlan: validTosPlan(),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed TOS plans without exposing plan content or calling generation', async () => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'MOCK_TEST',
+      type: 'Multiple Choice',
+      count: 1,
+      generationMode: 'tos',
+      tosPlan: {
+        version: 1,
+        rows: [{
+          id: 'secret-row-id',
+          competency: 'SECRET COMPETENCY',
+          objective: 'SECRET OBJECTIVE',
+          allocations: { Remembering: 1.5 },
+        }],
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body).toEqual({ error: 'Invalid generation request.' });
+    expect(JSON.stringify(body)).not.toContain('SECRET COMPETENCY');
+    expect(JSON.stringify(body)).not.toContain('SECRET OBJECTIVE');
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects TOS plans whose total does not match the parsed generation count', async () => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'MOCK_TEST',
+      type: 'Multiple Choice',
+      count: 3,
+      generationMode: 'tos',
+      tosPlan: validTosPlan(),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing topic', 'topic', undefined],
+    ['blank topic', 'topic', '   '],
+    ['missing grade', 'grade', undefined],
+    ['blank grade', 'grade', '   '],
+    ['missing subject', 'subject', undefined],
+    ['blank subject', 'subject', '   '],
+  ])('rejects TOS requests with %s before generation', async (_label, field, value) => {
+    const fetchMock = stubProviderCalls();
+    const body: Record<string, unknown> = {
+      topic: 'Photosynthesis',
+      grade: 'Grade 7',
+      subject: 'Science',
+      type: 'Multiple Choice',
+      count: 1,
+      generationMode: 'tos',
+      tosPlan: {
+        version: 1,
+        rows: [{
+          id: 'tos-row-1',
+          competency: 'Explain photosynthesis',
+          allocations: { Remembering: 1 },
+        }],
+      },
+    };
+    if (value === undefined) delete body[field];
+    else body[field] = value;
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('generates a valid TOS request with complete-set balancing and metadata', async () => {
+    const fetchMock = stubProviderCalls();
+    generateQuizQuestionsMock
+      .mockImplementationOnce(async () => [{
+        id: 'tos-q-remembering',
+        type: 'Multiple Choice',
+        text: 'What is a producer?',
+        options: ['Correct producer', 'Wrong B', 'Wrong C', 'Wrong D'],
+        correctAnswer: 0,
+      }])
+      .mockImplementationOnce(async () => [{
+        id: 'tos-q-applying',
+        type: 'Multiple Choice',
+        text: 'Which organism is a producer in this food web?',
+        options: ['Correct producer', 'Wrong B', 'Wrong C', 'Wrong D'],
+        correctAnswer: 0,
+      }]);
+    const response = await POST(request({
+      topic: 'Photosynthesis',
+      grade: 'Grade 7',
+      subject: 'Science',
+      type: 'Multiple Choice',
+      count: 2,
+      generationMode: 'tos',
+      tosPlan: validTosPlan(),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(generateQuizQuestionsMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const data = await response.json();
+    expect(data.questions).toHaveLength(2);
+    expect(data.questions.map((question: { tosRowId: string; tosCognitiveLevel: string }) => [
+      question.tosRowId,
+      question.tosCognitiveLevel,
+    ])).toEqual([
+      ['tos-row-1', 'Remembering'],
+      ['tos-row-1', 'Applying'],
+    ]);
+    expect(data.questions.map((question: { correctAnswer: number }) => question.correctAnswer)).toEqual([0, 2]);
+    for (const question of data.questions) {
+      expect(question.answer).toBe(question.options[question.correctAnswer]);
+    }
+  });
+
+  it.each([undefined, 0, 1.5, -1, 'not-a-number', 51])('rejects malformed TOS count %s before generation', async (count) => {
+    const fetchMock = stubProviderCalls();
+    const response = await POST(request({
+      topic: 'Photosynthesis',
+      type: 'Multiple Choice',
+      count,
+      generationMode: 'tos',
+      tosPlan: validTosPlan(),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid generation request.' });
+    expect(generateQuizQuestionsMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns a generic failure without partial TOS questions when generation fails', async () => {
+    const fetchMock = stubProviderCalls();
+    generateQuizQuestionsMock
+      .mockImplementationOnce(async () => [{
+        id: 'tos-q-remembering',
+        type: 'Multiple Choice',
+        text: 'What is a producer?',
+        options: ['Correct producer', 'Wrong B', 'Wrong C', 'Wrong D'],
+        correctAnswer: 0,
+      }])
+      .mockRejectedValueOnce(new Error('private provider failure sentinel'));
+
+    const response = await POST(request({
+      topic: 'Photosynthesis',
+      grade: 'Grade 7',
+      subject: 'Science',
+      type: 'Multiple Choice',
+      count: 2,
+      generationMode: 'tos',
+      tosPlan: validTosPlan(),
+    }));
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body).toEqual({ error: 'Failed to generate quiz' });
+    expect(JSON.stringify(body)).not.toContain('private provider failure sentinel');
+    expect(body.questions).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('True or False: correctAnswer is a number in JSON response (regression — was stripped to undefined)', async () => {
