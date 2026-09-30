@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
+import type { Question } from '../../../types';
+import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
 import { generateQuizQuestions } from './ai';
+import { createTosAiAdapter } from './tosAiAdapter';
+import { generateQuestionsFromTos } from './tosGeneration';
 import { requireExistingSession } from '../_lib/sessionAuth';
+import { validateTosPlan } from '../../../utils/tosPlan';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -18,10 +23,24 @@ const PROVIDER_SELECTION_REQUEST_FIELDS = new Set([
   'aiauthscheme',
 ]);
 
+const INVALID_GENERATION_REQUEST_ERROR = 'Invalid generation request.';
+const TOS_MIN_COUNT = 1;
+const TOS_MAX_COUNT = 50;
+
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const parsed = Number.parseInt(String(value), 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseTosCount(value: unknown): number | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined;
+  if (typeof value === 'string' && value.trim() === '') return undefined;
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= TOS_MIN_COUNT && parsed <= TOS_MAX_COUNT
+    ? parsed
+    : undefined;
 }
 
 function hasProviderSelectionOverride(body: unknown): boolean {
@@ -58,22 +77,68 @@ export async function POST(req: Request) {
       avoidQuestions,
       totalCount,
       batchStart,
+      generationMode,
+      tosPlan,
     } = body;
+    const directCount = parseInt(count) || 5;
+    const hasTosPlan = body && typeof body === 'object' && !Array.isArray(body)
+      && Object.prototype.hasOwnProperty.call(body, 'tosPlan');
 
-    const questions = await generateQuizQuestions({
-      topic,
-      competency,
-      objective,
-      grade,
-      subject,
-      type,
-      difficulty,
-      count: parseInt(count) || 5,
-      language: language || outputLanguage || 'English',
-      avoidQuestions: Array.isArray(avoidQuestions) ? avoidQuestions : undefined,
-      totalCount: parseOptionalNumber(totalCount),
-      batchStart: parseOptionalNumber(batchStart),
-    }, { startedAt });
+    if (generationMode !== undefined && generationMode !== 'direct' && generationMode !== 'tos') {
+      return NextResponse.json({ error: INVALID_GENERATION_REQUEST_ERROR }, { status: 400 });
+    }
+
+    if ((generationMode === undefined || generationMode === 'direct') && hasTosPlan) {
+      return NextResponse.json({ error: INVALID_GENERATION_REQUEST_ERROR }, { status: 400 });
+    }
+
+    let questions: Question[];
+
+    if (generationMode === 'tos') {
+      const tosCount = parseTosCount(count);
+      if (!hasTosPlan || type !== 'Multiple Choice' || tosCount === undefined) {
+        return NextResponse.json({ error: INVALID_GENERATION_REQUEST_ERROR }, { status: 400 });
+      }
+
+      const validation = validateTosPlan(tosPlan, tosCount);
+      if (!validation.valid) {
+        return NextResponse.json({ error: INVALID_GENERATION_REQUEST_ERROR }, { status: 400 });
+      }
+
+      if (
+        typeof topic !== 'string' || topic.trim() === ''
+        || typeof grade !== 'string' || grade.trim() === ''
+        || typeof subject !== 'string' || subject.trim() === ''
+      ) {
+        return NextResponse.json({ error: INVALID_GENERATION_REQUEST_ERROR }, { status: 400 });
+      }
+
+      const tosQuestions = await generateQuestionsFromTos(tosPlan, {
+        topic,
+        grade,
+        subject,
+        language: language || outputLanguage || 'English',
+        expectedTotal: tosCount,
+        avoidQuestions: Array.isArray(avoidQuestions) ? avoidQuestions : undefined,
+      }, createTosAiAdapter(startedAt));
+
+      questions = balanceMultipleChoiceAnswers(tosQuestions, 'Multiple Choice');
+    } else {
+      questions = await generateQuizQuestions({
+        topic,
+        competency,
+        objective,
+        grade,
+        subject,
+        type,
+        difficulty,
+        count: directCount,
+        language: language || outputLanguage || 'English',
+        avoidQuestions: Array.isArray(avoidQuestions) ? avoidQuestions : undefined,
+        totalCount: parseOptionalNumber(totalCount),
+        batchStart: parseOptionalNumber(batchStart),
+      }, { startedAt });
+    }
 
     // Map output to the frontend expected format
     const formattedQuestions = questions.map(q => {
@@ -97,6 +162,11 @@ export async function POST(req: Request) {
         options: q.options,
         correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : undefined,
         answer,
+        ...(generationMode === 'tos'
+          && q.tosRowId !== undefined
+          && q.tosCognitiveLevel !== undefined
+          ? { tosRowId: q.tosRowId, tosCognitiveLevel: q.tosCognitiveLevel }
+          : {}),
       };
     });
 

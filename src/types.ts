@@ -1,3 +1,5 @@
+import type { TosCognitiveLevel, TosPlan } from './utils/tosPlan';
+
 export interface Question {
   id: string;
   type?: string;
@@ -5,6 +7,8 @@ export interface Question {
   options?: string[];
   correctAnswer?: number;
   answer?: string;
+  tosRowId?: string;
+  tosCognitiveLevel?: TosCognitiveLevel;
 }
 
 export interface Section {
@@ -13,6 +17,7 @@ export interface Section {
   type: string;
   instructions: string;
   questions: Question[];
+  tosPlan?: TosPlan;
 }
 
 export interface WorksheetData {

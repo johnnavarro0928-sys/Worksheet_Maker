@@ -9,6 +9,7 @@ import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
 import { stripAnswerLabelPrefixes } from '../../../utils/answerOptionLabels';
+import type { TosCognitiveLevel } from '../../../utils/tosPlan';
 import { requestWorksheetAiProvider } from './aiProvider';
 import { resolveWorksheetMakerAiProviderConfig } from './aiProviderConfig';
 
@@ -55,6 +56,7 @@ export interface QuizParams {
   totalCount?: number;
   batchStart?: number;
   avoidQuestions?: string[];
+  cognitiveLevel?: TosCognitiveLevel;
 }
 
 export interface GenerateQuizQuestionsOptions {
@@ -327,6 +329,13 @@ export async function generateQuizQuestions(
   }
 
   const batchUniquenessRules = getBatchUniquenessRules(params);
+  const cognitiveLevelRules = params.cognitiveLevel
+    ? `
+
+COGNITIVE LEVEL ASSIGNMENT:
+- Every generated question MUST target exactly the assigned cognitive level: ${params.cognitiveLevel}.
+- Do not mix cognitive levels within this batch or substitute a different level.`
+    : '';
 
   const prompt = `You are a master curriculum specialist and item writer. Generate a ${params.type} test with ${params.count} questions.
 
@@ -341,7 +350,7 @@ TARGET AUDIENCE & CONTEXT:
 
 ${languageRules}
 
-${batchUniquenessRules}
+${batchUniquenessRules}${cognitiveLevelRules}
 
 GRADE-LEVEL COGNITIVE & VOCABULARY ADAPTATION:
 - Kindergarten - Grade 2: Use simple, short, age-appropriate sentences, concrete familiar terms, and direct foundational concepts.
@@ -428,7 +437,9 @@ STRICT ALIGNMENT & FORMATTING RULES:
     ...question,
     options: question.options ? stripAnswerLabelPrefixes(question.options) : undefined,
   }));
-  const questions = balanceMultipleChoiceAnswers(generatedQuestions, params.type);
+  const questions = params.cognitiveLevel
+    ? generatedQuestions
+    : balanceMultipleChoiceAnswers(generatedQuestions, params.type);
 
   return questions.map((q: GeneratedQuestion, i: number) => {
     let cleanText = (q.text || "").trim();

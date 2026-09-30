@@ -2,13 +2,44 @@
 
 import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, Plus, BookOpen, Loader2, ArrowUp, ArrowDown, Trash2, CheckCircle2, Bookmark } from "lucide-react";
 import { generateDocx } from "../utils/exportDocs";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Question, Section, WorksheetData } from "../types";
 import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
 import { stripAnswerLabelPrefixes } from "../utils/answerOptionLabels";
 import { SavedWorksheet, loadLibrary, saveWorksheet, deleteWorksheet } from "../utils/worksheetLibrary";
+import TosEditor from "../components/TosEditor";
+import TosReview from "../components/TosReview";
+import type { TosPlan } from "../utils/tosPlan";
+import { exportTosReport, getTosReportStatus, type TosReportInput } from "../utils/tosExport";
+import {
+  TOS_DEFAULT_ENABLED,
+  canSubmitTosGeneration,
+  commitTosGeneration,
+  createEmptyTosPlan,
+  createTosApproval,
+  getTosApprovalStatus,
+  isTosGenerationContextCurrent,
+  getTosGenerationPersistenceIssue,
+  isTosAvailable,
+  validateTosEditorDraft,
+  type TosApprovalSnapshot,
+  type TosGenerationContext,
+} from "../utils/tosEditorState";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
+type TosRequestBody = {
+  topic: string;
+  competency: string;
+  objective: string;
+  grade: string;
+  subject: string;
+  language: string;
+  type: 'Multiple Choice';
+  count: number;
+  generationMode: 'tos';
+  tosPlan: TosPlan;
+};
 
 function createId(prefix: string): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -54,19 +85,47 @@ export default function Home() {
 
   const [activeSectionId, setActiveSectionId] = useState<string>("sec-1");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [tosEnabled, setTosEnabled] = useState(TOS_DEFAULT_ENABLED);
+  const [tosPlan, setTosPlan] = useState<TosPlan>(() => createEmptyTosPlan());
+  const [tosApproval, setTosApproval] = useState<TosApprovalSnapshot | null>(null);
+  const [tosGenerationError, setTosGenerationError] = useState<string | null>(null);
   const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
   const [library, setLibrary] = useState<SavedWorksheet[]>([]);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+  const generationContextRef = useRef<TosGenerationContext>({ revision: 0 });
+  const invalidateGenerationContext = () => {
+    generationContextRef.current = {
+      revision: generationContextRef.current.revision + 1,
+    };
+  };
 
   // Load library from localStorage on mount
   useEffect(() => {
     setLibrary(loadLibrary());
   }, []);
 
+  const updateGenerateConfig = (updates: Partial<typeof generateConfig>) => {
+    invalidateGenerationContext();
+    setGenerateConfig((prev) => ({ ...prev, ...updates }));
+  };
+
+  const updateQuizData = (updates: Partial<typeof quizData>) => {
+    invalidateGenerationContext();
+    setQuizData((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleQuestionTypeChange = (type: string) => {
+    updateGenerateConfig({ type });
+    setTosEnabled(false);
+    setTosApproval(null);
+    setTosGenerationError(null);
+  };
+
   // Section Management Handlers
   const handleSelectSection = (sec: Section) => {
     setActiveSectionId(sec.id);
-    setGenerateConfig((prev) => ({ ...prev, type: sec.type }));
+    handleQuestionTypeChange(sec.type);
   };
 
   const handleAddSection = (type: string) => {
@@ -82,7 +141,7 @@ export default function Home() {
 
     setSections((prev) => [...prev, newSection]);
     setActiveSectionId(newSection.id);
-    setGenerateConfig((prev) => ({ ...prev, type: type }));
+    handleQuestionTypeChange(type);
   };
 
   const handleDeleteSection = (secId: string) => {
@@ -91,16 +150,19 @@ export default function Home() {
       return;
     }
     const updated = sections.filter((s) => s.id !== secId);
+    invalidateGenerationContext();
     setSections(updated);
     if (activeSectionId === secId) {
       setActiveSectionId(updated[0].id);
-      setGenerateConfig((prev) => ({ ...prev, type: updated[0].type }));
+      handleQuestionTypeChange(updated[0].type);
     }
   };
 
   const handleMoveSection = (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= sections.length) return;
+
+    invalidateGenerationContext();
 
     const newSections = [...sections];
     const temp = newSections[index];
@@ -121,6 +183,7 @@ export default function Home() {
   };
 
   const handleUpdateSection = (secId: string, updates: Partial<Section>) => {
+    invalidateGenerationContext();
     setSections((prev) =>
       prev.map((s) => (s.id === secId ? { ...s, ...updates } : s))
     );
@@ -129,6 +192,8 @@ export default function Home() {
   const handleAddQuestion = (secId: string) => {
     const targetSec = sections.find((s) => s.id === secId);
     if (!targetSec) return;
+
+    invalidateGenerationContext();
 
     const newQ: Question = {
       id: createId('q'),
@@ -143,6 +208,7 @@ export default function Home() {
   };
 
   const handleDeleteQuestion = (secId: string, qId: string) => {
+    invalidateGenerationContext();
     setSections((prev) =>
       prev.map((s) =>
         s.id === secId
@@ -153,6 +219,7 @@ export default function Home() {
   };
 
   const handleUpdateQuestion = (secId: string, qId: string, newText: string) => {
+    invalidateGenerationContext();
     setSections((prev) =>
       prev.map((s) =>
         s.id === secId
@@ -190,6 +257,26 @@ export default function Home() {
     await generateDocx(fullWorksheet, includeAnswerKey);
   };
 
+  const getTosReportInput = (): TosReportInput => ({
+    worksheetTitle: quizData.title,
+    section: sections.find((section) => section.id === activeSectionId) || sections[0],
+  });
+
+  const handleExportTosReport = async () => {
+    const input = getTosReportInput();
+    const status = getTosReportStatus(input);
+    if (!status.eligible) {
+      alert(status.message || 'TOS report export is unavailable.');
+      return;
+    }
+
+    try {
+      await exportTosReport(input);
+    } catch {
+      alert('TOS report export failed. No file was created.');
+    }
+  };
+
   const handleSave = () => {
     const fullWorksheet: WorksheetData = { ...quizData, sections };
     const updated = saveWorksheet(fullWorksheet);
@@ -198,6 +285,10 @@ export default function Home() {
   };
 
   const handleLoadFromLibrary = (entry: SavedWorksheet) => {
+    const loadedSections = entry.worksheet.sections;
+    const loadedActiveSection = loadedSections[0];
+
+    invalidateGenerationContext();
     setQuizData({
       title: entry.worksheet.title,
       teacher: entry.worksheet.teacher,
@@ -206,8 +297,16 @@ export default function Home() {
       term: entry.worksheet.term ?? '',
       instructions: entry.worksheet.instructions,
     });
-    setSections(entry.worksheet.sections);
-    setActiveSectionId(entry.worksheet.sections[0]?.id ?? '');
+    setGenerateConfig((prev) => ({
+      ...prev,
+      type: loadedActiveSection?.type ?? prev.type,
+    }));
+    setSections(loadedSections);
+    setActiveSectionId(loadedActiveSection?.id ?? '');
+    setTosEnabled(false);
+    setTosPlan(createEmptyTosPlan());
+    setTosApproval(null);
+    setTosGenerationError(null);
     setIsLibraryOpen(false);
   };
 
@@ -216,17 +315,76 @@ export default function Home() {
     setLibrary(updated);
   };
 
+  const tosDraft = {
+    plan: tosPlan,
+    config: {
+      topic: generateConfig.topic,
+      competency: generateConfig.competency,
+      objective: generateConfig.objective,
+      grade: generateConfig.grade,
+      subject: generateConfig.subject,
+      language: generateConfig.language,
+      type: generateConfig.type,
+      count: generateConfig.count,
+    },
+  };
+  const tosValidation = validateTosEditorDraft(tosDraft);
+  const tosApprovalStatus = getTosApprovalStatus(tosDraft, tosApproval);
+
+  const handleTosEnabledChange = (enabled: boolean) => {
+    invalidateGenerationContext();
+    setTosEnabled(enabled);
+    setTosGenerationError(null);
+    if (!enabled) setTosApproval(null);
+  };
+
+  const handleTosPlanChange = (plan: TosPlan) => {
+    invalidateGenerationContext();
+    setTosPlan(plan);
+  };
+
+  const handleTosApprove = () => {
+    const approval = createTosApproval(tosDraft);
+    if (!approval) return;
+    invalidateGenerationContext();
+    setTosApproval(approval);
+    setTosGenerationError(null);
+  };
+
   const handleGenerate = async () => {
-    if (!generateConfig.topic || !generateConfig.competency) {
+    const approvedTos = tosEnabled ? tosApproval : null;
+    const targetSection = sections.find((s) => s.id === activeSectionId);
+    if (!tosEnabled && (!generateConfig.topic || !generateConfig.competency)) {
       alert("Please enter both Topic and Learning Competency before generating.");
       return;
     }
+    if (tosEnabled && (!targetSection || !isTosAvailable(targetSection.type))) {
+      setTosGenerationError('TOS generation is available only for an active Multiple Choice section.');
+      return;
+    }
+    if (tosEnabled) {
+      const persistenceIssue = getTosGenerationPersistenceIssue(targetSection);
+      if (persistenceIssue) {
+        setTosGenerationError(persistenceIssue);
+        return;
+      }
+    }
+    if (tosEnabled && (!approvedTos || !canSubmitTosGeneration(tosDraft, approvedTos, true))) {
+      setTosGenerationError(
+        tosApprovalStatus === 'stale'
+          ? 'TOS approval is stale. Review the latest configuration and approve the plan again.'
+          : 'Fix the TOS plan and approve it before generating.',
+      );
+      return;
+    }
 
+    const startedContext = generationContextRef.current;
+
+    setTosGenerationError(null);
     setIsGenerating(true);
     try {
-      const totalCount = generateConfig.count || 5;
-      const targetSection = sections.find((s) => s.id === activeSectionId);
-      const fetchBatch = async (requestBody: QuestionBatchRequest | QuestionGenerationConfig) => {
+      const totalCount = tosEnabled && approvedTos ? approvedTos.config.count : generateConfig.count || 5;
+      const fetchGeneration = async (requestBody: QuestionBatchRequest | QuestionGenerationConfig | TosRequestBody) => {
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -240,11 +398,43 @@ export default function Home() {
         return data.questions || [];
       };
 
-      const allQuestions = await generateUniqueQuestionBatches(
-        { ...generateConfig, count: totalCount },
-        fetchBatch,
-        targetSection?.questions || [],
-      );
+      const allQuestions = tosEnabled && approvedTos
+        ? await fetchGeneration({
+            ...approvedTos.config,
+            type: 'Multiple Choice',
+            generationMode: 'tos',
+            tosPlan: approvedTos.plan,
+          })
+        : await generateUniqueQuestionBatches(
+            { ...generateConfig, count: totalCount },
+            fetchGeneration,
+            targetSection?.questions || [],
+          );
+
+      if (tosEnabled && approvedTos) {
+        if (!isTosGenerationContextCurrent(startedContext, generationContextRef.current)) {
+          setTosGenerationError('TOS generation was cancelled because the worksheet changed while it was generating.');
+          return;
+        }
+
+        const cleanedQuestions = allQuestions.map((q: Question) => {
+          let cleanText = (q.text || "").trim();
+          while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
+            cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
+          }
+          return { ...q, text: cleanText };
+        });
+        const commitResult = commitTosGeneration(targetSection, approvedTos.plan, cleanedQuestions, totalCount);
+        if (!commitResult.success) {
+          setTosGenerationError(commitResult.error);
+          return;
+        }
+
+        setSections((prev) =>
+          prev.map((s) => (s.id === activeSectionId ? commitResult.section : s))
+        );
+        return;
+      }
 
       if (allQuestions.length > 0) {
         const cleanedQuestions = allQuestions.map((q: Question) => {
@@ -262,21 +452,29 @@ export default function Home() {
               : s
           )
         );
-        if (cleanedQuestions.length < totalCount) {
+        if (!tosEnabled && cleanedQuestions.length < totalCount) {
           alert(`Generated ${cleanedQuestions.length} unique questions. Some repeated items were removed; try generating again to add more.`);
         }
       } else {
         alert("No questions returned from generator.");
       }
     } catch (e: unknown) {
-      const err = e as Error;
-      alert(err.message || "Network error: Unable to connect to generator API.");
+      if (tosEnabled) {
+        setTosGenerationError('TOS generation failed. No questions were added.');
+      } else {
+        const err = e as Error;
+        alert(err.message || "Network error: Unable to connect to generator API.");
+      }
     } finally {
       setIsGenerating(false);
     }
   };
 
   const activeSection = sections.find((s) => s.id === activeSectionId) || sections[0];
+  const tosReportStatus = getTosReportStatus({
+    worksheetTitle: quizData.title,
+    section: activeSection,
+  });
 
   return (
     <div className="dashboard-container">
@@ -301,7 +499,7 @@ export default function Home() {
             className="neu-input"
             placeholder="e.g. Solar System, Photosynthesis..."
             value={generateConfig.topic}
-            onChange={(e) => setGenerateConfig({ ...generateConfig, topic: e.target.value })}
+            onChange={(e) => updateGenerateConfig({ topic: e.target.value })}
           />
         </div>
 
@@ -313,7 +511,7 @@ export default function Home() {
             style={{ resize: 'vertical' }}
             placeholder="Enter one or more competencies (e.g. 1. Identify planets, 2. Compare orbits)..."
             value={generateConfig.competency}
-            onChange={(e) => setGenerateConfig({ ...generateConfig, competency: e.target.value })}
+            onChange={(e) => updateGenerateConfig({ competency: e.target.value })}
           ></textarea>
         </div>
 
@@ -325,14 +523,14 @@ export default function Home() {
             style={{ resize: 'vertical' }}
             placeholder="Enter one or more objectives (e.g. 1. Recall planet names, 2. Calculate distance)..."
             value={generateConfig.objective}
-            onChange={(e) => setGenerateConfig({ ...generateConfig, objective: e.target.value })}
+            onChange={(e) => updateGenerateConfig({ objective: e.target.value })}
           ></textarea>
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Grade</label>
-            <select className="neu-input" value={generateConfig.grade} onChange={(e) => setGenerateConfig({ ...generateConfig, grade: e.target.value })}>
+            <select className="neu-input" value={generateConfig.grade} onChange={(e) => updateGenerateConfig({ grade: e.target.value })}>
               <option>Kindergarten</option>
               <option>Grade 1</option>
               <option>Grade 2</option>
@@ -355,7 +553,7 @@ export default function Home() {
               className="neu-input"
               placeholder="e.g. Science, Araling Panlipunan..."
               value={generateConfig.subject}
-              onChange={(e) => setGenerateConfig({ ...generateConfig, subject: e.target.value })}
+              onChange={(e) => updateGenerateConfig({ subject: e.target.value })}
             />
           </div>
         </div>
@@ -365,7 +563,7 @@ export default function Home() {
           <select
             className="neu-input"
             value={generateConfig.language}
-            onChange={(e) => setGenerateConfig({ ...generateConfig, language: e.target.value })}
+            onChange={(e) => updateGenerateConfig({ language: e.target.value })}
           >
             <option>English</option>
             <option>Filipino</option>
@@ -380,7 +578,7 @@ export default function Home() {
             value={generateConfig.type}
             onChange={(e) => {
               const newType = e.target.value;
-              setGenerateConfig({ ...generateConfig, type: newType });
+              handleQuestionTypeChange(newType);
               if (activeSectionId) {
                 handleUpdateSection(activeSectionId, { type: newType });
               }
@@ -397,7 +595,7 @@ export default function Home() {
         <div style={{ display: 'flex', gap: '12px' }}>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Difficulty</label>
-            <select className="neu-input" value={generateConfig.difficulty} onChange={(e) => setGenerateConfig({ ...generateConfig, difficulty: e.target.value })}>
+            <select className="neu-input" value={generateConfig.difficulty} onChange={(e) => updateGenerateConfig({ difficulty: e.target.value })}>
               <option>Easy</option>
               <option>Average</option>
               <option>Hard</option>
@@ -409,12 +607,28 @@ export default function Home() {
               type="number"
               className="neu-input"
               value={generateConfig.count}
-              onChange={(e) => setGenerateConfig({ ...generateConfig, count: parseInt(e.target.value) || 1 })}
+              onChange={(e) => updateGenerateConfig({ count: parseInt(e.target.value) || 1 })}
               min={1}
               max={50}
             />
           </div>
         </div>
+
+        <TosEditor
+          enabled={tosEnabled}
+          questionType={generateConfig.type}
+          plan={tosPlan}
+          expectedTotal={generateConfig.count}
+          validation={tosValidation}
+          approvalStatus={tosApprovalStatus}
+          generationError={tosGenerationError}
+          isGenerating={isGenerating}
+          onEnabledChange={handleTosEnabledChange}
+          onPlanChange={handleTosPlanChange}
+          onApprove={handleTosApprove}
+        />
+
+        <TosReview section={activeSection} />
 
         <button
           className="neu-button-solid bg-ios-blue"
@@ -436,33 +650,33 @@ export default function Home() {
 
         <div className="form-group">
           <label>Worksheet Title</label>
-          <input type="text" className="neu-input" value={quizData.title} onChange={(e) => setQuizData({ ...quizData, title: e.target.value })} />
+          <input type="text" className="neu-input" value={quizData.title} onChange={(e) => updateQuizData({ title: e.target.value })} />
         </div>
 
         <div className="form-group">
           <label>School Name</label>
-          <input type="text" className="neu-input" placeholder="Enter school name" value={quizData.school} onChange={(e) => setQuizData({ ...quizData, school: e.target.value })} />
+          <input type="text" className="neu-input" placeholder="Enter school name" value={quizData.school} onChange={(e) => updateQuizData({ school: e.target.value })} />
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
           <div className="form-group" style={{ flex: 1 }}>
             <label>School Year</label>
-            <input type="text" className="neu-input" placeholder="e.g. S.Y. 2026-2027" value={quizData.schoolYear} onChange={(e) => setQuizData({ ...quizData, schoolYear: e.target.value })} />
+            <input type="text" className="neu-input" placeholder="e.g. S.Y. 2026-2027" value={quizData.schoolYear} onChange={(e) => updateQuizData({ schoolYear: e.target.value })} />
           </div>
           <div className="form-group" style={{ flex: 1 }}>
             <label>Term</label>
-            <input type="text" className="neu-input" placeholder="e.g. FIRST TERM" value={quizData.term} onChange={(e) => setQuizData({ ...quizData, term: e.target.value })} />
+            <input type="text" className="neu-input" placeholder="e.g. FIRST TERM" value={quizData.term} onChange={(e) => updateQuizData({ term: e.target.value })} />
           </div>
         </div>
 
         <div className="form-group">
           <label>Teacher Name</label>
-          <input type="text" className="neu-input" placeholder="Enter teacher name" value={quizData.teacher} onChange={(e) => setQuizData({ ...quizData, teacher: e.target.value })} />
+          <input type="text" className="neu-input" placeholder="Enter teacher name" value={quizData.teacher} onChange={(e) => updateQuizData({ teacher: e.target.value })} />
         </div>
 
         <div className="form-group">
           <label>General Directions</label>
-          <textarea className="neu-input" rows={3} style={{ resize: 'vertical' }} value={quizData.instructions} onChange={(e) => setQuizData({ ...quizData, instructions: e.target.value })}></textarea>
+          <textarea className="neu-input" rows={3} style={{ resize: 'vertical' }} value={quizData.instructions} onChange={(e) => updateQuizData({ instructions: e.target.value })}></textarea>
         </div>
 
         <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.06)', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
@@ -502,6 +716,23 @@ export default function Home() {
             <button className="neu-button-solid bg-ios-blue" onClick={handleExportDocx}>
               <Download size={16} /> DOCX
             </button>
+            {tosReportStatus.review.visible && (
+              <div className="tos-export-action">
+                <button
+                  className="neu-button-solid bg-ios-blue"
+                  onClick={handleExportTosReport}
+                  disabled={!tosReportStatus.eligible}
+                  title={tosReportStatus.message || 'Export the active section TOS report.'}
+                >
+                  <FileText size={16} /> Export TOS Report
+                </button>
+                {!tosReportStatus.eligible && tosReportStatus.message && (
+                  <span className="tos-export-action__message" role="status">
+                    {tosReportStatus.message}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </header>
 
