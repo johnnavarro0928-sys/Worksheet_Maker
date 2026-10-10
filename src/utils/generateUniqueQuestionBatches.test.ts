@@ -138,4 +138,50 @@ describe('generateUniqueQuestionBatches', () => {
       ],
     });
   });
+
+  const mcqConfig = {
+    topic: 'Photosynthesis',
+    competency: 'Explain how plants make food.',
+    grade: 'Grade 6',
+    subject: 'Science',
+    language: 'English',
+    type: 'Multiple Choice',
+    difficulty: 'Average',
+    count: 3,
+  };
+
+  it('continues the MCQ answer pattern after existing section questions', async () => {
+    const existing = Array.from({ length: 5 }, (_, i) => mcq(`existing-${i}`, `Existing question ${i}?`));
+    const existingSnapshot = structuredClone(existing);
+    const fetchQuestionBatch = vi.fn().mockResolvedValueOnce([
+      mcq('q1', 'Which pigment helps plants absorb light?'),
+      mcq('q2', 'What gas do plants release during photosynthesis?'),
+      mcq('q3', 'Which plant part controls gas exchange?'),
+    ]);
+
+    const result = await generateUniqueQuestionBatches(mcqConfig, fetchQuestionBatch, existing);
+
+    // Pattern [0, 2, 1, 3, 1, 0, 3, 2] at positions 5..7 is [0, 3, 2]; from 0 it would be [0, 2, 1]
+    expect(result.map(q => q.correctAnswer)).toEqual([0, 3, 2]);
+    expect(existing).toEqual(existingSnapshot);
+  });
+
+  it('keeps A-D counts within 1 across three sequential 5-question generates', async () => {
+    let section: Question[] = [];
+
+    for (let round = 0; round < 3; round++) {
+      const fetchQuestionBatch = vi.fn().mockResolvedValueOnce(
+        Array.from({ length: 5 }, (_, i) => mcq(`r${round}-q${i}`, `Round ${round} question ${i}?`)),
+      );
+      const accepted = await generateUniqueQuestionBatches({ ...mcqConfig, count: 5 }, fetchQuestionBatch, section);
+      section = [...section, ...accepted];
+    }
+
+    const counts = [0, 0, 0, 0];
+    for (const question of section) counts[question.correctAnswer!]++;
+
+    expect(section).toHaveLength(15);
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+  });
 });
+

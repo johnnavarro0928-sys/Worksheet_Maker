@@ -19,10 +19,14 @@ export interface McqBalanceable {
  * carries an `answer` string field, it is kept in sync with the new position.
  *
  * Non-MCQ types (determined by the `type` parameter) pass through unchanged.
+ *
+ * `startIndex` offsets the pattern position, so a batch appended after N
+ * existing questions continues the pattern at position N instead of 0.
  */
 export function balanceMultipleChoiceAnswers<T extends McqBalanceable>(
   questions: T[],
   type: string,
+  startIndex: number = 0,
 ): T[] {
   if (type !== 'Multiple Choice') return questions;
 
@@ -34,7 +38,7 @@ export function balanceMultipleChoiceAnswers<T extends McqBalanceable>(
     const currentAnswerIndex = question.correctAnswer;
     if (currentAnswerIndex < 0 || currentAnswerIndex > 3) return question;
 
-    const targetAnswerIndex = BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN[index % BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN.length];
+    const targetAnswerIndex = BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN[(startIndex + index) % BALANCED_MULTIPLE_CHOICE_ANSWER_PATTERN.length];
     if (currentAnswerIndex === targetAnswerIndex) return question;
 
     const options = [...question.options];
