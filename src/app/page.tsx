@@ -5,10 +5,10 @@ import { generateDocx } from "../utils/exportDocs";
 import { useState, useEffect } from "react";
 import { Question, Section, WorksheetData } from "../types";
 import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
-import { stripAnswerLabelPrefixes } from "../utils/answerOptionLabels";
 import { stripQuestionNumberPrefix } from "../utils/stripQuestionNumberPrefix";
 import { createBlankQuestion } from "../utils/createBlankQuestion";
 import { getSectionTypeChangeConfirmMessage } from "../utils/sectionTypeChange";
+import { setCorrectOption, setIdentificationAnswer, setOptionText, setTrueFalseAnswer } from "../utils/questionEdits";
 import { SavedWorksheet, loadLibrary, saveWorksheet, deleteWorksheet } from "../utils/worksheetLibrary";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
@@ -159,6 +159,16 @@ export default function Home() {
               ...s,
               questions: s.questions.map((q) => (q.id === qId ? { ...q, text: newText } : q))
             }
+          : s
+      )
+    );
+  };
+
+  const handleEditQuestion = (secId: string, qId: string, edit: (q: Question) => Question) => {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === secId
+          ? { ...s, questions: s.questions.map((q) => (q.id === qId ? edit(q) : q)) }
           : s
       )
     );
@@ -682,18 +692,65 @@ export default function Home() {
                               {/* Question Type specific displays */}
                               {q.options && q.options.length > 0 && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingLeft: '24px', marginTop: '8px' }}>
-                                  {stripAnswerLabelPrefixes(q.options).map((opt, i) => (
-                                    <div key={i} style={{ fontSize: '14px', color: '#334155' }}>{String.fromCharCode(65 + i)}. {opt}</div>
-                                  ))}
+                                  {q.options.map((opt, i) => {
+                                    const isCorrect = q.correctAnswer === i;
+                                    return (
+                                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#334155' }}>
+                                        <button
+                                          type="button"
+                                          title="Mark as correct answer"
+                                          aria-pressed={isCorrect}
+                                          onClick={() => handleEditQuestion(sec.id, q.id, (question) => setCorrectOption(question, i))}
+                                          style={{ width: '20px', height: '20px', flexShrink: 0, padding: 0, borderRadius: '50%', border: isCorrect ? '1px solid #1E3A8A' : '1px solid #cbd5e1', background: isCorrect ? '#1E3A8A' : 'transparent', color: isCorrect ? '#fff' : '#334155', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                          {String.fromCharCode(65 + i)}
+                                        </button>
+                                        <input
+                                          type="text"
+                                          value={opt}
+                                          onChange={(e) => handleEditQuestion(sec.id, q.id, (question) => setOptionText(question, i, e.target.value))}
+                                          style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', borderBottom: '1px dotted #cbd5e1', fontSize: '14px', color: '#334155' }}
+                                        />
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
                               {sec.type === 'True or False' && (
                                 <div style={{ display: 'flex', gap: '24px', paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
-                                  <div>___ True</div>
-                                  <div>___ False</div>
+                                  {['True', 'False'].map((label, value) => {
+                                    const isSelected = q.correctAnswer === value;
+                                    return (
+                                      <button
+                                        key={label}
+                                        type="button"
+                                        title="Mark as correct answer"
+                                        aria-pressed={isSelected}
+                                        onClick={() => handleEditQuestion(sec.id, q.id, (question) => setTrueFalseAnswer(question, value))}
+                                        style={{ border: 'none', background: 'transparent', padding: 0, font: 'inherit', cursor: 'pointer', color: isSelected ? '#1E3A8A' : 'inherit', fontWeight: isSelected ? 700 : 'inherit' }}
+                                      >
+                                        ___ {label}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               )}
-                              {(sec.type === 'Identification' || sec.type === 'Problem Solving') && (
+                              {sec.type === 'Identification' && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
+                                  <span>Answer: ________________________________________</span>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '160px', fontSize: '13px', fontWeight: 600, color: '#1E3A8A' }}>
+                                    Key:
+                                    <input
+                                      type="text"
+                                      value={q.answer ?? ''}
+                                      placeholder="Correct answer"
+                                      onChange={(e) => handleEditQuestion(sec.id, q.id, (question) => setIdentificationAnswer(question, e.target.value))}
+                                      style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', borderBottom: '1px dotted #cbd5e1', fontSize: '14px', color: '#1e293b' }}
+                                    />
+                                  </label>
+                                </div>
+                              )}
+                              {sec.type === 'Problem Solving' && (
                                 <div style={{ paddingLeft: '24px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
                                   Answer: ________________________________________
                                 </div>

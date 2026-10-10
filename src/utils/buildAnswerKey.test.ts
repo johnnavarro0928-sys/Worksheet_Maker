@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildAnswerKey } from './buildAnswerKey';
 import { balanceMultipleChoiceAnswers } from './balanceMcqAnswers';
 import { createBlankQuestion } from './createBlankQuestion';
+import { setCorrectOption, setIdentificationAnswer, setOptionText } from './questionEdits';
 import { WorksheetData, Section } from '../types';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -411,5 +412,30 @@ describe('buildAnswerKey – manually added questions', () => {
     expect(buildAnswerKey(ws)).toEqual([
       { sectionTitle: 'True or False Section', lines: ['1. False'] },
     ]);
+  });
+});
+
+describe('buildAnswerKey – teacher edits', () => {
+  it('uses the new letter after the correct option is changed', () => {
+    const generated = {
+      id: 'q1',
+      text: 'Which organelle makes energy?',
+      options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Vacuole'],
+      correctAnswer: 1,
+      answer: 'Mitochondria',
+    };
+    const edited = setCorrectOption(setOptionText(generated, 2, 'Chloroplast'), 2);
+
+    const ws = makeWorksheet([{ title: 'MCQ Section', type: 'Multiple Choice', instructions: '', questions: [edited] }]);
+
+    expect(buildAnswerKey(ws)).toEqual([{ sectionTitle: 'MCQ Section', lines: ['1. C'] }]);
+  });
+
+  it('uses the edited Identification answer', () => {
+    const edited = setIdentificationAnswer({ id: 'q1', text: 'Powerhouse of the cell', answer: 'Nucleus' }, 'Mitochondria');
+
+    const ws = makeWorksheet([{ title: 'ID Section', type: 'Identification', instructions: '', questions: [edited] }]);
+
+    expect(buildAnswerKey(ws)).toEqual([{ sectionTitle: 'ID Section', lines: ['1. Mitochondria'] }]);
   });
 });
