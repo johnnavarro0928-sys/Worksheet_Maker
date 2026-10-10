@@ -161,8 +161,10 @@ describe('generateUniqueQuestionBatches', () => {
 
     const result = await generateUniqueQuestionBatches(mcqConfig, fetchQuestionBatch, existing);
 
-    // Pattern [0, 2, 1, 3, 1, 0, 3, 2] at positions 5..7 is [0, 3, 2]; from 0 it would be [0, 2, 1]
+    // The 5 existing answers are all B, so new items go to the least-used letters:
+    // A, D, C (pattern order breaks ties). Balancing from scratch would give [0, 2, 1].
     expect(result.map(q => q.correctAnswer)).toEqual([0, 3, 2]);
+    expect(result.map(q => q.correctAnswer)).not.toContain(1);
     expect(existing).toEqual(existingSnapshot);
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { balanceMultipleChoiceAnswers, McqBalanceable } from './balanceMcqAnswers';
+import { balanceMultipleChoiceAnswers, classifyMcqOptions, McqBalanceable } from './balanceMcqAnswers';
 
 /**
  * Simulates what the route returns for a single 5-question API batch.
@@ -128,7 +128,7 @@ describe('balanceMultipleChoiceAnswers', () => {
     expect(result).toEqual(questions);
   });
 
-  describe('startIndex', () => {
+  describe('existing section questions (replaces startIndex)', () => {
     function allB(count: number): McqBalanceable[] {
       return Array.from({ length: count }, (_, i) => ({
         options: [`Wrong A ${i}`, `Right ${i}`, `Wrong C ${i}`, `Wrong D ${i}`],
@@ -136,24 +136,160 @@ describe('balanceMultipleChoiceAnswers', () => {
       }));
     }
 
-    it('matches the default output when startIndex is 0', () => {
+    function existingWithLetters(letters: number[]): McqBalanceable[] {
+      return letters.map((correctAnswer, i) => ({
+        options: [`Existing A ${i}`, `Existing B ${i}`, `Existing C ${i}`, `Existing D ${i}`],
+        correctAnswer,
+      }));
+    }
+
+    it('matches the default output when there are no existing questions', () => {
       const questions = allB(10);
-      expect(balanceMultipleChoiceAnswers(questions, 'Multiple Choice', 0))
+      expect(balanceMultipleChoiceAnswers(questions, 'Multiple Choice', []))
         .toEqual(balanceMultipleChoiceAnswers(questions, 'Multiple Choice'));
     });
 
-    it('uses pattern positions 5, 6, 7 when startIndex is 5', () => {
-      // Pattern [0, 2, 1, 3, 1, 0, 3, 2] at positions 5..7 is [0, 3, 2]
-      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', 5);
+    it('continues like the old pattern after 5 existing pattern-balanced questions', () => {
+      // Was startIndex 5: pattern [0, 2, 1, 3, 1, 0, 3, 2] at positions 5..7 is [0, 3, 2].
+      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', existingWithLetters([0, 2, 1, 3, 1]));
       expect(result.map(q => q.correctAnswer)).toEqual([0, 3, 2]);
       result.forEach((q, i) => expect(q.options![q.correctAnswer!]).toBe(`Right ${i}`));
     });
 
-    it('wraps around when startIndex exceeds the pattern length', () => {
-      // 13 % 8 = 5, so same positions as startIndex 5
-      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', 13);
+    it('continues like the old pattern after 13 existing pattern-balanced questions', () => {
+      // Was startIndex 13 (13 % 8 = 5): same result as above.
+      const thirteen = [0, 2, 1, 3, 1, 0, 3, 2, 0, 2, 1, 3, 1];
+      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', existingWithLetters(thirteen));
       expect(result.map(q => q.correctAnswer)).toEqual([0, 3, 2]);
+    });
+
+    it('pushes new free items away from a letter the section already overuses', () => {
+      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', existingWithLetters([0, 0, 0, 0, 0]));
+      expect(result.map(q => q.correctAnswer)).not.toContain(0);
+      expect(new Set(result.map(q => q.correctAnswer)).size).toBe(3);
+    });
+
+    it('avoids a third identical letter in a row when another least-used letter exists', () => {
+      // Counts are 3 each, the section ends B, B, and position 12 would prefer B.
+      const existing = existingWithLetters([0, 2, 3, 0, 2, 3, 0, 2, 1, 3, 1, 1]);
+      const [result] = balanceMultipleChoiceAnswers(allB(1), 'Multiple Choice', existing);
+      expect(result.correctAnswer).not.toBe(1);
+    });
+
+    it('never modifies existing questions', () => {
+      const existing = existingWithLetters([0, 0, 1]);
+      const snapshot = structuredClone(existing);
+      balanceMultipleChoiceAnswers(allB(4), 'Multiple Choice', existing);
+      expect(existing).toEqual(snapshot);
     });
   });
 });
 
+describe('classifyMcqOptions', () => {
+  it.each([
+    ['ascending angles', ['20°', '70°', '90°', '110°']],
+    ['ascending lengths with units', ['12 cm', '18 cm', '20 cm', '40 cm']],
+    ['decimals', ['0.25', '0.5', '1.75', '2']],
+    ['negatives', ['-3', '−1', '0', '4']],
+    ['thousands separators', ['1,200', '1,500', '12,000', '120,000']],
+    ['fractions', ['1/4', '½', '¾', '1 1/2']],
+    ['currency and compound units', ['$5', '$7.50', '$10', '$12']],
+    ['speeds', ['5 m/s', '10 m/s', '15 m/s', '20 m/s']],
+    ['one-word alphabetical', ['Carbon', 'Hydrogen', 'Nitrogen', 'Oxygen']],
+    ['one-word alphabetical ignoring case', ['apple', 'Banana', 'cherry', 'Date']],
+  ])('treats %s as ordered', (_label, options) => {
+    expect(classifyMcqOptions(options)).toBe('ordered');
+  });
+
+  it.each([
+    ['unsorted angles', ['110°', '70°', '20°', '90°']],
+    ['unsorted lengths', ['12 cm', '40 cm', '20 cm', '18 cm']],
+    ['descending numbers', ['40 cm', '20 cm', '18 cm', '12 cm']],
+    ['repeated numbers', ['2', '2', '3', '4']],
+    ['one-word unsorted', ['Oxygen', 'Carbon', 'Nitrogen', 'Hydrogen']],
+    ['one-word unsorted ignoring case', ['Banana', 'apple', 'cherry', 'date']],
+    ['mixed numeric and text', ['5', 'ten', '7', 'eight']],
+    ['mixed numeric and text in word order', ['5', '7', 'eight', 'ten']],
+    ['sentences', ['It increases.', 'It decreases.', 'It stays the same.', 'It doubles.']],
+    ['phrases that start with numbers', ['5 apples are red', '6 apples are green', '7 apples are ripe', '8 apples are sour']],
+  ])('treats %s as free', (_label, options) => {
+    expect(classifyMcqOptions(options)).toBe('free');
+  });
+});
+
+describe('order-aware balancing', () => {
+  function ordered(correctAnswer: number, i = 0): McqBalanceable {
+    return { options: [`${10 + i}°`, `${20 + i}°`, `${30 + i}°`, `${40 + i}°`], correctAnswer, answer: `${10 + i + correctAnswer * 10}°` };
+  }
+
+  function free(i: number): McqBalanceable {
+    return { options: [`Wrong A ${i}`, `Right ${i}`, `Wrong C ${i}`, `Wrong D ${i}`], correctAnswer: 1, answer: `Right ${i}` };
+  }
+
+  function letterCounts(questions: McqBalanceable[]): number[] {
+    const counts = [0, 0, 0, 0];
+    for (const q of questions) counts[q.correctAnswer!]++;
+    return counts;
+  }
+
+  it('keeps ordered items exactly as the model returned them', () => {
+    const item = ordered(3);
+    const [result] = balanceMultipleChoiceAnswers([item], 'Multiple Choice');
+    expect(result).toEqual(item);
+    expect(result.options).toEqual(['10°', '20°', '30°', '40°']);
+    expect(result.correctAnswer).toBe(3);
+  });
+
+  it('balances a 25-item mixed set (40% ordered) to within 1 across A-D', () => {
+    const orderedLetters = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1];
+    const questions: McqBalanceable[] = [];
+    for (let i = 0; i < 25; i++) {
+      questions.push(i % 5 < 2 ? ordered(orderedLetters[Math.floor(i / 5) * 2 + (i % 5)], i) : free(i));
+    }
+
+    const result = balanceMultipleChoiceAnswers(questions, 'Multiple Choice');
+
+    const counts = letterCounts(result);
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+    result.forEach((q, i) => {
+      if (i % 5 < 2) expect(q).toEqual(questions[i]);
+      else expect(q.options![q.correctAnswer!]).toBe(`Right ${i}`);
+    });
+  });
+
+  it('gets as close as possible when ordered items crowd one letter', () => {
+    const questions = [
+      ...Array.from({ length: 10 }, (_, i) => ordered(3, i)),
+      ...Array.from({ length: 15 }, (_, i) => free(i)),
+    ];
+
+    const counts = letterCounts(balanceMultipleChoiceAnswers(questions, 'Multiple Choice'));
+
+    expect(counts).toEqual([5, 5, 5, 10]);
+  });
+
+  it('avoids three identical letters in a row next to ordered items', () => {
+    const questions = [ordered(1, 0), ordered(1, 1), free(2), free(3), free(4), free(5)];
+
+    const letters = balanceMultipleChoiceAnswers(questions, 'Multiple Choice').map(q => q.correctAnswer);
+
+    for (let i = 2; i < letters.length; i++) {
+      expect(letters[i] === letters[i - 1] && letters[i] === letters[i - 2]).toBe(false);
+    }
+  });
+
+  it('keeps the answer string in sync for swapped free items', () => {
+    const result = balanceMultipleChoiceAnswers(Array.from({ length: 8 }, (_, i) => free(i)), 'Multiple Choice');
+    result.forEach((q, i) => {
+      expect(q.answer).toBe(q.options![q.correctAnswer!]);
+      expect(q.answer).toBe(`Right ${i}`);
+    });
+  });
+
+  it('does not mutate its inputs', () => {
+    const questions = [ordered(2), free(1), free(2)];
+    const snapshot = structuredClone(questions);
+    balanceMultipleChoiceAnswers(questions, 'Multiple Choice');
+    expect(questions).toEqual(snapshot);
+  });
+});

@@ -3,6 +3,15 @@ import { generateQuizQuestions } from './ai';
 
 const originalEnv = { ...process.env };
 
+// Exact copies of the language rules before the MCQ conventions change.
+const FILIPINO_RULES = `OUTPUT LANGUAGE INSTRUCTIONS (FILIPINO):
+- Write ALL generated questions, distractor options, and instructions in natural, grammatically correct classroom Filipino (Tagalog/Wikang Pambansa).
+- Do NOT confuse the subject field (Mathematics) with the output language. Even if subject is Science, Math, or Araling Panlipunan, the wording of questions and options MUST be in Filipino.
+- Retain standard, universally recognized technical or scientific terms in English only when conventional in Philippine classroom settings (e.g. 'photosynthesis', 'cell membrane', 'x-axis'), but frame sentence structures in proper Filipino.`;
+const BILINGUAL_RULES = `OUTPUT LANGUAGE INSTRUCTIONS (BILINGUAL ENGLISH-FILIPINO):
+- Write generated questions and distractor options in a clear, natural English-Filipino bilingual format suitable for Philippine classrooms.
+- Present the primary concept in English with appropriate Filipino translation or clarification context where helpful.`;
+
 const aiMocks = vi.hoisted(() => {
   const createModel = vi.fn((modelName: string) => ({ modelName }));
   return {
@@ -787,6 +796,54 @@ describe('generateQuizQuestions', () => {
     for (const q of questions) {
       expect(q.answer).toBeUndefined();
     }
+  });
+
+  describe('item-writing conventions in the prompt', () => {
+    async function promptFor(language?: string) {
+      process.env.OPENAI_API_KEY = 'test-openai-key';
+      process.env.ACTIVE_AI_PROVIDER = 'openai';
+      process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+      aiMocks.generateObject.mockResolvedValue({ object: { questions: [{ text: 'Q?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] } });
+      await generateQuizQuestions({ topic: 'Trapezoids', grade: 'Grade 9', subject: 'Mathematics', difficulty: 'Average', type: 'Multiple Choice', count: 1, ...(language ? { language } : {}) });
+      return aiMocks.generateObject.mock.calls.at(-1)![0].prompt as string;
+    }
+
+    it('adds the stem, option ordering and length rules', async () => {
+      const prompt = await promptFor();
+      expect(prompt).toContain('For Multiple Choice, begin every question with a one-sentence stem');
+      expect(prompt).toContain('short real-life situation where it fits the competency');
+      expect(prompt).toContain('do not force a scenario onto pure recall items');
+      expect(prompt).toContain('The stem and the question must be directly relevant to each other');
+      expect(prompt).toContain('struggling to average learners');
+      expect(prompt).toContain('list them in ascending order and use the same unit in every choice');
+      expect(prompt).toContain('list them in alphabetical order');
+      expect(prompt).toContain('make all four approximately the same length');
+      expect(prompt).toContain('No choice may be the only one that is clearly longer or clearly shorter than the others');
+      expect(prompt).toContain('distribute correct-answer positions as evenly as reasonably possible across A-D, but never at the cost of the ordering rules above; the system balances the remaining items');
+    });
+
+    it('replaces the old letter-distribution rule and keeps every other rule', async () => {
+      const prompt = await promptFor();
+      expect(prompt).not.toContain('no answer letter should appear more than one item above another answer letter');
+      for (const rule of [
+        'evenly distribute the 1 generated test questions across ALL of the listed competencies and objectives',
+        'Every question MUST strictly evaluate the specified Learning Competencies and Specific Objectives',
+        'Distractor choices for Multiple Choice MUST be plausible and educationally meaningful',
+        'ALWAYS use standard Unicode superscripts and subscripts',
+        'Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>)',
+        'Do NOT include leading question numbers, letters, or prefixes',
+        'do NOT include option letters or labels inside the option text',
+        'GRADE-LEVEL COGNITIVE & VOCABULARY ADAPTATION',
+        'DIFFICULTY LEVEL ALIGNMENT (BLOOM\'S TAXONOMY)',
+      ]) {
+        expect(prompt).toContain(rule);
+      }
+    });
+
+    it('leaves the Filipino and bilingual language rules unchanged', async () => {
+      expect(await promptFor('Filipino')).toContain(FILIPINO_RULES);
+      expect(await promptFor('English-Filipino bilingual')).toContain(BILINGUAL_RULES);
+    });
   });
 
   describe('Claude primary provider', () => {
