@@ -28,6 +28,25 @@ describe('stripQuestionNumberPrefix', () => {
     expect(stripQuestionNumberPrefix(input)).toBe(input);
   });
 
+  it.each([
+    '1945: Which war ended in this year?',
+    '2025. What event happened?',
+    '1000) is the number of what?',
+  ])('keeps a 4+ digit number followed by a delimiter: %j', (input) => {
+    expect(stripQuestionNumberPrefix(input)).toBe(input);
+  });
+
+  it.each([
+    ['1. What is photosynthesis?', 'What is photosynthesis?'],
+    ['12) What is photosynthesis?', 'What is photosynthesis?'],
+    ['Q7: What is photosynthesis?', 'What is photosynthesis?'],
+    ['Q 15: What is photosynthesis?', 'What is photosynthesis?'],
+    ['100. What is photosynthesis?', 'What is photosynthesis?'],
+    ['1. Q2: What is photosynthesis?', 'What is photosynthesis?'],
+  ])('strips 1-3 digit numbering prefix from %j', (input, expected) => {
+    expect(stripQuestionNumberPrefix(input)).toBe(expected);
+  });
+
   it('keeps decimals and times where the delimiter is directly followed by a digit', () => {
     expect(stripQuestionNumberPrefix('2.5 kg of water is heated. What happens?')).toBe('2.5 kg of water is heated. What happens?');
     expect(stripQuestionNumberPrefix('10:30 is what time in 24-hour format?')).toBe('10:30 is what time in 24-hour format?');
