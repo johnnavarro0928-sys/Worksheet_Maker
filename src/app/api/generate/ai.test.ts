@@ -63,6 +63,32 @@ describe('generateQuizQuestions', () => {
     expect(questions[0].id).toContain('mock-');
   });
 
+  it('returns unique MOCK_TEST ids across consecutive calls', async () => {
+    const params = { topic: 'MOCK_TEST', grade: '10', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 3 };
+
+    const first = await generateQuizQuestions(params);
+    const second = await generateQuizQuestions(params);
+    const ids = [...first, ...second].map(q => q.id);
+
+    expect(new Set(ids).size).toBe(6);
+    expect(ids.every(id => id.startsWith('mock-'))).toBe(true);
+  });
+
+  it('keeps the q-<timestamp>-<index> id format for real provider questions', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'Real provider question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Fractions', grade: '10', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 1
+    });
+
+    expect(questions[0].id).toMatch(/^q-\d+-0$/);
+  });
+
   it('treats MOCK_TEST as an ordinary topic in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     process.env.OPENAI_API_KEY = 'test-openai-key';

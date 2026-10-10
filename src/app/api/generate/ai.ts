@@ -298,8 +298,10 @@ export async function generateQuizQuestions(
 ): Promise<Question[]> {
   if (params.topic === 'MOCK_TEST' && process.env.NODE_ENV !== 'production') {
     const hasCorrectAnswer = params.type === 'Multiple Choice' || params.type === 'True or False';
+    // Unique per call so repeated mock generates into one section don't share ids.
+    const mockBatchId = crypto.randomUUID();
     return Array.from({ length: params.count }).map((_, i) => ({
-      id: `mock-${i}`,
+      id: `mock-${mockBatchId}-${i}`,
       type: params.type,
       text: formatFormula(`Mock Question ${i + 1} for ${params.subject}?`),
       options: params.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
