@@ -819,6 +819,8 @@ describe('generateQuizQuestions', () => {
       expect(prompt).toContain('list them in alphabetical order');
       expect(prompt).toContain('make all four approximately the same length');
       expect(prompt).toContain('No choice may be the only one that is clearly longer or clearly shorter than the others');
+      expect(prompt).toContain('use "All of the above" and "None of the above" sparingly and always as the last option');
+      expect(prompt).toContain('options must not refer to other options by letter');
       expect(prompt).toContain('distribute correct-answer positions as evenly as reasonably possible across A-D, but never at the cost of the ordering rules above; the system balances the remaining items');
     });
 
