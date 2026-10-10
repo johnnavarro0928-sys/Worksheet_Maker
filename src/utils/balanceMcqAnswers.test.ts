@@ -127,4 +127,33 @@ describe('balanceMultipleChoiceAnswers', () => {
     const result = balanceMultipleChoiceAnswers(questions, 'Multiple Choice');
     expect(result).toEqual(questions);
   });
+
+  describe('startIndex', () => {
+    function allB(count: number): McqBalanceable[] {
+      return Array.from({ length: count }, (_, i) => ({
+        options: [`Wrong A ${i}`, `Right ${i}`, `Wrong C ${i}`, `Wrong D ${i}`],
+        correctAnswer: 1,
+      }));
+    }
+
+    it('matches the default output when startIndex is 0', () => {
+      const questions = allB(10);
+      expect(balanceMultipleChoiceAnswers(questions, 'Multiple Choice', 0))
+        .toEqual(balanceMultipleChoiceAnswers(questions, 'Multiple Choice'));
+    });
+
+    it('uses pattern positions 5, 6, 7 when startIndex is 5', () => {
+      // Pattern [0, 2, 1, 3, 1, 0, 3, 2] at positions 5..7 is [0, 3, 2]
+      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', 5);
+      expect(result.map(q => q.correctAnswer)).toEqual([0, 3, 2]);
+      result.forEach((q, i) => expect(q.options![q.correctAnswer!]).toBe(`Right ${i}`));
+    });
+
+    it('wraps around when startIndex exceeds the pattern length', () => {
+      // 13 % 8 = 5, so same positions as startIndex 5
+      const result = balanceMultipleChoiceAnswers(allB(3), 'Multiple Choice', 13);
+      expect(result.map(q => q.correctAnswer)).toEqual([0, 3, 2]);
+    });
+  });
 });
+

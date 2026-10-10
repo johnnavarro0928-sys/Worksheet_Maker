@@ -63,6 +63,7 @@ export default function Home() {
 
   // Load library from localStorage on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is client-only; reading it after mount avoids a hydration mismatch
     setLibrary(loadLibrary());
   }, []);
 
@@ -205,7 +206,9 @@ export default function Home() {
       instructions: entry.worksheet.instructions,
     });
     setSections(entry.worksheet.sections);
-    setActiveSectionId(entry.worksheet.sections[0]?.id ?? '');
+    const firstSection = entry.worksheet.sections[0];
+    setActiveSectionId(firstSection?.id ?? '');
+    if (firstSection) setGenerateConfig((prev) => ({ ...prev, type: firstSection.type }));
     setIsLibraryOpen(false);
   };
 
