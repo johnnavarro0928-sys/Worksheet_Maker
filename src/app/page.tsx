@@ -7,6 +7,8 @@ import { Question, Section, WorksheetData } from "../types";
 import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
 import { stripAnswerLabelPrefixes } from "../utils/answerOptionLabels";
 import { stripQuestionNumberPrefix } from "../utils/stripQuestionNumberPrefix";
+import { createBlankQuestion } from "../utils/createBlankQuestion";
+import { getSectionTypeChangeConfirmMessage } from "../utils/sectionTypeChange";
 import { SavedWorksheet, loadLibrary, saveWorksheet, deleteWorksheet } from "../utils/worksheetLibrary";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
@@ -131,12 +133,7 @@ export default function Home() {
     const targetSec = sections.find((s) => s.id === secId);
     if (!targetSec) return;
 
-    const newQ: Question = {
-      id: createId('q'),
-      text: "Enter your question text here...",
-      options: targetSec.type === 'Multiple Choice' ? ['Option A', 'Option B', 'Option C', 'Option D'] : undefined,
-      correctAnswer: 0
-    };
+    const newQ = createBlankQuestion(targetSec.type, createId('q'));
 
     setSections((prev) =>
       prev.map((s) => (s.id === secId ? { ...s, questions: [...s.questions, newQ] } : s))
@@ -378,9 +375,12 @@ export default function Home() {
             value={generateConfig.type}
             onChange={(e) => {
               const newType = e.target.value;
+              const questionCount = sections.find((s) => s.id === activeSectionId)?.questions.length ?? 0;
+              const confirmMessage = getSectionTypeChangeConfirmMessage(questionCount);
+              if (confirmMessage && !window.confirm(confirmMessage)) return;
               setGenerateConfig({ ...generateConfig, type: newType });
               if (activeSectionId) {
-                handleUpdateSection(activeSectionId, { type: newType });
+                handleUpdateSection(activeSectionId, confirmMessage ? { type: newType, questions: [] } : { type: newType });
               }
             }}
           >

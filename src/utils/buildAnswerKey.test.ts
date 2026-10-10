@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildAnswerKey } from './buildAnswerKey';
 import { balanceMultipleChoiceAnswers } from './balanceMcqAnswers';
+import { createBlankQuestion } from './createBlankQuestion';
 import { WorksheetData, Section } from '../types';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -390,5 +391,25 @@ describe('buildAnswerKey – Identification', () => {
     ]);
 
     expect(buildAnswerKey(ws)).toHaveLength(0);
+  });
+});
+
+describe('buildAnswerKey – manually added questions', () => {
+  it('omits a manually added True or False question from the key', () => {
+    const ws = makeWorksheet([
+      {
+        title: 'True or False Section',
+        type: 'True or False',
+        instructions: '',
+        questions: [
+          { id: 'q1', text: 'Generated statement', correctAnswer: 1 },
+          createBlankQuestion('True or False', 'q2'),
+        ],
+      },
+    ]);
+
+    expect(buildAnswerKey(ws)).toEqual([
+      { sectionTitle: 'True or False Section', lines: ['1. False'] },
+    ]);
   });
 });
