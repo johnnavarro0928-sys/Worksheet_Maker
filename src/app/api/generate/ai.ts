@@ -10,7 +10,7 @@ import { formatFormula } from '../../../utils/formatFormula';
 import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
 import { stripAnswerLabelPrefixes } from '../../../utils/answerOptionLabels';
 import { stripQuestionNumberPrefix } from '../../../utils/stripQuestionNumberPrefix';
-import { requestWorksheetAiProvider } from './aiProvider';
+import { getDualFallbackRequirementMs, requestWorksheetAiProvider } from './aiProvider';
 import { resolveWorksheetMakerAiProviderConfig } from './aiProviderConfig';
 import { WORKSHEET_AI_TOTAL_BUDGET_MS, isWorksheetClaudeEnabled, requestWorksheetClaude } from './claudeProvider';
 
@@ -374,7 +374,10 @@ STRICT ALIGNMENT & FORMATTING RULES:
   // Claude runs first when configured; the fallback then shares its 52s budget.
   if (isWorksheetClaudeEnabled()) {
     fallbackStartedAt = options.startedAt ?? Date.now();
-    object = await requestWorksheetClaude(prompt, schema, { startedAt: fallbackStartedAt }) as GeneratedQuestionsObject | undefined;
+    const budget = config.mode === 'dual'
+      ? { startedAt: fallbackStartedAt, totalBudgetMs: config.totalTimeoutMs, fallbackReserveMs: getDualFallbackRequirementMs(config) }
+      : { startedAt: fallbackStartedAt };
+    object = await requestWorksheetClaude(prompt, schema, budget) as GeneratedQuestionsObject | undefined;
   }
 
   if (!object && config.mode === 'dual') {

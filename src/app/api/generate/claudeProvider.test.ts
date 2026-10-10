@@ -240,6 +240,7 @@ describe('requestWorksheetClaude', () => {
 
     expect(result).toBeUndefined();
     expect(create).not.toHaveBeenCalled();
+    expect(info.mock.calls).toEqual([['[worksheet-ai-claude]', { provider: 'claude', attempt: 1, durationMs: 0, failureKind: 'budget_skipped' }]]);
   });
 
   it('logs bounded telemetry with usage and never the prompt, key, response text or SDK messages', async () => {

@@ -126,6 +126,13 @@ function requestBody(profile: WorksheetAiProviderProfile, prompt: string): Recor
   return body;
 }
 
+// Time a dual-mode fallback needs to start: what remainingWindowFits demands
+// at the first profile (every profile window plus the finalization reserve).
+export function getDualFallbackRequirementMs(config: DualConfig): number {
+  return config.profiles.reduce((sum, profile) => sum + profile.timeoutMs, 0)
+    + WORKSHEET_AI_FINALIZATION_AND_TRANSITION_RESERVE_MS;
+}
+
 function remainingWindowFits(
   config: DualConfig,
   profileIndex: number,

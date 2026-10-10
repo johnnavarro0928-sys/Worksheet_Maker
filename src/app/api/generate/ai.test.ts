@@ -49,19 +49,19 @@ vi.mock('@anthropic-ai/sdk', async (importOriginal) => {
   return { ...actual, default: FakeAnthropic };
 });
 
-function setDualEnv() {
+function setDualEnv(primaryTimeoutMs = 15000, secondaryTimeoutMs = 30000) {
   process.env.WORKSHEET_MAKER_AI_MODE = 'dual';
   process.env.WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS = '52000';
   process.env.WORKSHEET_MAKER_AI_PRIMARY_BASE_URL = 'https://primary.example.test/v1';
   process.env.WORKSHEET_MAKER_AI_PRIMARY_API_KEY = 'primary-test-secret';
   process.env.WORKSHEET_MAKER_AI_PRIMARY_MODEL = 'primary-model';
   process.env.WORKSHEET_MAKER_AI_PRIMARY_AUTH_SCHEME = 'bearer';
-  process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = '15000';
+  process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = String(primaryTimeoutMs);
   process.env.WORKSHEET_MAKER_AI_SECONDARY_BASE_URL = 'https://secondary.example.test/v1';
   process.env.WORKSHEET_MAKER_AI_SECONDARY_API_KEY = 'secondary-test-secret';
   process.env.WORKSHEET_MAKER_AI_SECONDARY_MODEL = 'secondary-model';
   process.env.WORKSHEET_MAKER_AI_SECONDARY_AUTH_SCHEME = 'api-key';
-  process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = '30000';
+  process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = String(secondaryTimeoutMs);
 }
 
 describe('generateQuizQuestions', () => {
@@ -880,6 +880,159 @@ describe('generateQuizQuestions', () => {
       expect(claudeMocks.create).not.toHaveBeenCalled();
       expect(fetch).not.toHaveBeenCalled();
     });
+
+    describe('fallback budget', () => {
+      const dualQuestions = { questions: [{ text: 'Dual question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] };
+
+      function stubDualFetch() {
+        const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => new Response(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(dualQuestions) } }],
+        })));
+        vi.stubGlobal('fetch', fetch);
+        return fetch;
+      }
+
+      function claudeLogs(info: { mock: { calls: unknown[][] } }) {
+        return info.mock.calls
+          .filter(call => call[0] === '[worksheet-ai-claude]')
+          .map(call => call[1] as { attempt: number; failureKind: string });
+      }
+
+      async function anthropicErrors() {
+        const { default: Anthropic } = await import('@anthropic-ai/sdk');
+        return {
+          unauthorized: () => Anthropic.APIError.generate(401, undefined, 'unauthorized', new Headers()),
+          overloaded: () => Anthropic.APIError.generate(529, undefined, 'overloaded', new Headers()),
+          timeout: () => new Anthropic.APIConnectionTimeoutError(),
+        };
+      }
+
+      function requestTimeouts() {
+        return claudeMocks.create.mock.calls.map(call => (call[1] as { timeout: number }).timeout);
+      }
+
+      beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-10T08:00:00Z'));
+        vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-test');
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      });
+
+      it('skips Claude under the production dual config and lets dual run', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        setDualEnv(26000, 20000);
+        const fetch = stubDualFetch();
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        expect(claudeMocks.create).not.toHaveBeenCalled();
+        expect(claudeLogs(info)).toEqual([expect.objectContaining({ attempt: 1, failureKind: 'budget_skipped' })]);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(questions[0].text).toBe('Dual question?');
+      });
+
+      it('gives Claude 20s under the recommended dual config and falls back to dual after a fast 401', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        vi.stubEnv('ANTHROPIC_TIMEOUT_MS', '20000');
+        setDualEnv(10000, 14000);
+        const fetch = stubDualFetch();
+        const errors = await anthropicErrors();
+        claudeMocks.create.mockRejectedValue(errors.unauthorized());
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        expect(requestTimeouts()).toEqual([20000]);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(questions[0].text).toBe('Dual question?');
+      });
+
+      it('still runs dual after Claude times out at the full 20s, without retrying Claude', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        vi.stubEnv('ANTHROPIC_TIMEOUT_MS', '20000');
+        setDualEnv(10000, 14000);
+        const fetch = stubDualFetch();
+        const errors = await anthropicErrors();
+        claudeMocks.create.mockImplementation(async () => {
+          vi.setSystemTime(Date.now() + 20000);
+          throw errors.timeout();
+        });
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        expect(requestTimeouts()).toEqual([20000]);
+        expect(claudeLogs(info).map(entry => entry.failureKind)).toEqual(['timeout', 'budget_skipped']);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(questions[0].text).toBe('Dual question?');
+      });
+
+      it('retries a fast 529 when the leftover time still covers the dual reserve', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        vi.stubEnv('ANTHROPIC_TIMEOUT_MS', '20000');
+        setDualEnv(10000, 14000);
+        const fetch = stubDualFetch();
+        const errors = await anthropicErrors();
+        claudeMocks.create
+          .mockRejectedValueOnce(errors.overloaded())
+          .mockResolvedValueOnce(claudeMessage(claudeQuestions));
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        expect(requestTimeouts()).toEqual([20000, 20000]);
+        expect(fetch).not.toHaveBeenCalled();
+        expect(questions[0].text).toBe('What do plants make?');
+      });
+
+      it('does not retry a 529 when the retry would not leave the dual reserve', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        vi.stubEnv('ANTHROPIC_TIMEOUT_MS', '20000');
+        setDualEnv(10000, 14000);
+        const fetch = stubDualFetch();
+        const errors = await anthropicErrors();
+        claudeMocks.create.mockImplementation(async () => {
+          vi.setSystemTime(Date.now() + 18000);
+          throw errors.overloaded();
+        });
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        expect(claudeMocks.create).toHaveBeenCalledTimes(1);
+        expect(claudeLogs(info).map(entry => entry.failureKind)).toEqual(['retryable_http', 'budget_skipped']);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(questions[0].text).toBe('Dual question?');
+      });
+
+      it('falls back to the legacy path after a fast 401', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        vi.stubEnv('ANTHROPIC_TIMEOUT_MS', '20000');
+        useLegacyOpenAi();
+        const errors = await anthropicErrors();
+        claudeMocks.create.mockRejectedValue(errors.unauthorized());
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        expect(requestTimeouts()).toEqual([20000]);
+        expect(aiMocks.generateObject).toHaveBeenCalledTimes(1);
+        expect(questions[0].text).toBe('Legacy question?');
+      });
+
+      it('runs the legacy path with the remaining time after Claude timeouts', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        vi.stubEnv('ANTHROPIC_TIMEOUT_MS', '20000');
+        useLegacyOpenAi();
+        const errors = await anthropicErrors();
+        claudeMocks.create.mockImplementation(async (_params: unknown, requestOptions: { timeout: number }) => {
+          vi.setSystemTime(Date.now() + requestOptions.timeout);
+          throw errors.timeout();
+        });
+
+        const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+        // 52s budget, 20s legacy reserve: 20s, then a 12s retry, leaving 20s for legacy.
+        expect(requestTimeouts()).toEqual([20000, 12000]);
+        expect(aiMocks.generateObject).toHaveBeenCalledTimes(1);
+        expect(questions[0].text).toBe('Legacy question?');
+      });
+    });
   });
 });
-
