@@ -77,5 +77,5 @@ export async function generateUniqueQuestionBatches(
     }
   }
 
-  return balanceMultipleChoiceAnswers(acceptedQuestions, config.type, existingQuestions.length).map(syncMultipleChoiceAnswer);
+  return balanceMultipleChoiceAnswers(acceptedQuestions, config.type, existingQuestions).map(syncMultipleChoiceAnswer);
 }
