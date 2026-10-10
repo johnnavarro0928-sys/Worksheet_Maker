@@ -12,6 +12,7 @@ import { stripAnswerLabelPrefixes } from '../../../utils/answerOptionLabels';
 import { stripQuestionNumberPrefix } from '../../../utils/stripQuestionNumberPrefix';
 import { requestWorksheetAiProvider } from './aiProvider';
 import { resolveWorksheetMakerAiProviderConfig } from './aiProviderConfig';
+import { WORKSHEET_AI_TOTAL_BUDGET_MS, isWorksheetClaudeEnabled, requestWorksheetClaude } from './claudeProvider';
 
 const MIN_MODEL_TIMEOUT_MS = 5000;
 const MAX_MODEL_TIMEOUT_MS = 35000;
@@ -368,21 +369,28 @@ STRICT ALIGNMENT & FORMATTING RULES:
 
   const config = resolveWorksheetMakerAiProviderConfig();
   let object: GeneratedQuestionsObject | undefined;
+  let fallbackStartedAt = options.startedAt;
 
-  if (config.mode === 'dual') {
+  // Claude runs first when configured; the fallback then shares its 52s budget.
+  if (isWorksheetClaudeEnabled()) {
+    fallbackStartedAt = options.startedAt ?? Date.now();
+    object = await requestWorksheetClaude(prompt, schema, { startedAt: fallbackStartedAt }) as GeneratedQuestionsObject | undefined;
+  }
+
+  if (!object && config.mode === 'dual') {
     const providerObject = await requestWorksheetAiProvider(`${prompt}\n\n${getDualModeResponseFormatRules(params.type)}`, config, {
-      startedAt: options.startedAt,
+      startedAt: fallbackStartedAt,
     });
     const parsed = schema.safeParse(providerObject);
     if (!parsed.success) {
       throw new Error('Worksheet AI response did not match the expected worksheet format.');
     }
     object = parsed.data as GeneratedQuestionsObject;
-  } else {
+  } else if (!object) {
     const modelConfigs = getModelAttemptConfigs();
     const modelTimeoutMs = getModelTimeoutMs(params.count);
-    const startTime = Date.now();
-    const GLOBAL_MAX_TIME_MS = 52000;
+    const startTime = fallbackStartedAt ?? Date.now();
+    const GLOBAL_MAX_TIME_MS = WORKSHEET_AI_TOTAL_BUDGET_MS;
 
     for (let i = 0; i < modelConfigs.length; i++) {
       const elapsed = Date.now() - startTime;

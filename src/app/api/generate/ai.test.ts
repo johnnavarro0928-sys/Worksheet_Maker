@@ -35,12 +35,42 @@ vi.mock('@ai-sdk/azure', () => ({
   createAzure: vi.fn(() => aiMocks.createModel),
 }));
 
+const claudeMocks = vi.hoisted(() => ({ create: vi.fn() }));
+
+// Real SDK (error classes, helpers) with the network call replaced.
+vi.mock('@anthropic-ai/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@anthropic-ai/sdk')>();
+  class FakeAnthropic extends actual.default {
+    constructor(options?: ConstructorParameters<typeof actual.default>[0]) {
+      super(options);
+      (this as unknown as { beta: unknown }).beta = { messages: { create: claudeMocks.create } };
+    }
+  }
+  return { ...actual, default: FakeAnthropic };
+});
+
+function setDualEnv() {
+  process.env.WORKSHEET_MAKER_AI_MODE = 'dual';
+  process.env.WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS = '52000';
+  process.env.WORKSHEET_MAKER_AI_PRIMARY_BASE_URL = 'https://primary.example.test/v1';
+  process.env.WORKSHEET_MAKER_AI_PRIMARY_API_KEY = 'primary-test-secret';
+  process.env.WORKSHEET_MAKER_AI_PRIMARY_MODEL = 'primary-model';
+  process.env.WORKSHEET_MAKER_AI_PRIMARY_AUTH_SCHEME = 'bearer';
+  process.env.WORKSHEET_MAKER_AI_PRIMARY_TIMEOUT_MS = '15000';
+  process.env.WORKSHEET_MAKER_AI_SECONDARY_BASE_URL = 'https://secondary.example.test/v1';
+  process.env.WORKSHEET_MAKER_AI_SECONDARY_API_KEY = 'secondary-test-secret';
+  process.env.WORKSHEET_MAKER_AI_SECONDARY_MODEL = 'secondary-model';
+  process.env.WORKSHEET_MAKER_AI_SECONDARY_AUTH_SCHEME = 'api-key';
+  process.env.WORKSHEET_MAKER_AI_SECONDARY_TIMEOUT_MS = '30000';
+}
+
 describe('generateQuizQuestions', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     vi.useRealTimers();
     aiMocks.generateObject.mockReset();
     aiMocks.createModel.mockClear();
+    claudeMocks.create.mockReset();
   });
 
   afterEach(() => {
@@ -758,4 +788,98 @@ describe('generateQuizQuestions', () => {
       expect(q.answer).toBeUndefined();
     }
   });
+
+  describe('Claude primary provider', () => {
+    const params = { topic: 'Photosynthesis', grade: 'Grade 10', subject: 'Science', difficulty: 'Average', type: 'Multiple Choice', count: 1 };
+    const claudeQuestions = {
+      questions: [{ text: '1. What do plants make?', options: ['A. Glucose', 'B. Salt', 'C. Iron', 'D. Sand'], correctAnswer: 0 }],
+    };
+
+    function claudeMessage(object: unknown) {
+      return {
+        model: 'claude-sonnet-5-5',
+        content: [{ type: 'text', text: JSON.stringify(object) }],
+        stop_reason: 'end_turn',
+        stop_details: null,
+        usage: { input_tokens: 10, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      };
+    }
+
+    function useLegacyOpenAi() {
+      process.env.OPENAI_API_KEY = 'test-openai-key';
+      process.env.ACTIVE_AI_PROVIDER = 'openai';
+      process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+      aiMocks.generateObject.mockResolvedValue({
+        object: { questions: [{ text: 'Legacy question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+      });
+    }
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('never calls Claude and keeps the legacy path when ANTHROPIC_API_KEY is unset', async () => {
+      vi.stubEnv('ANTHROPIC_API_KEY', '');
+      useLegacyOpenAi();
+
+      const questions = await generateQuizQuestions(params);
+
+      expect(claudeMocks.create).not.toHaveBeenCalled();
+      expect(aiMocks.generateObject).toHaveBeenCalledTimes(1);
+      expect(questions[0].text).toBe('Legacy question?');
+    });
+
+    it('uses Claude first and runs the usual post-processing', async () => {
+      vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-test');
+      vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      useLegacyOpenAi();
+      claudeMocks.create.mockResolvedValue(claudeMessage(claudeQuestions));
+
+      const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+      expect(claudeMocks.create).toHaveBeenCalledTimes(1);
+      expect(aiMocks.generateObject).not.toHaveBeenCalled();
+      expect(questions[0].text).toBe('What do plants make?');
+      expect(questions[0].options).toEqual(['Glucose', 'Salt', 'Iron', 'Sand']);
+      expect(questions[0].id).toMatch(/^q-\d+-0$/);
+    });
+
+    it('falls back to the existing legacy path when Claude returns a terminal 401', async () => {
+      vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-test');
+      vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      useLegacyOpenAi();
+      const { default: Anthropic } = await import('@anthropic-ai/sdk');
+      claudeMocks.create.mockRejectedValue(Anthropic.APIError.generate(401, undefined, 'unauthorized', new Headers()));
+
+      const questions = await generateQuizQuestions(params, { startedAt: Date.now() });
+
+      expect(claudeMocks.create).toHaveBeenCalledTimes(1);
+      expect(aiMocks.generateObject).toHaveBeenCalledTimes(1);
+      expect(questions[0].text).toBe('Legacy question?');
+    });
+
+    it('stops the legacy loop when options.startedAt has already used the 52s budget', async () => {
+      vi.stubEnv('ANTHROPIC_API_KEY', '');
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      useLegacyOpenAi();
+
+      await expect(generateQuizQuestions(params, { startedAt: Date.now() - 60000 })).rejects.toThrow('AI generation failed.');
+      expect(aiMocks.generateObject).not.toHaveBeenCalled();
+    });
+
+    it('lets dual mode refuse with a budget error instead of running over after Claude used the time', async () => {
+      vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-test');
+      vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      setDualEnv();
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      vi.stubGlobal('fetch', fetch);
+
+      await expect(generateQuizQuestions(params, { startedAt: Date.now() - 40000 }))
+        .rejects.toMatchObject({ code: 'AI_PROVIDER_BUDGET_EXCEEDED' });
+      expect(claudeMocks.create).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });
 });
+
