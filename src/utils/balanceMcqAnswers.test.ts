@@ -293,3 +293,79 @@ describe('order-aware balancing', () => {
     expect(questions).toEqual(snapshot);
   });
 });
+
+describe('positional options (fixed)', () => {
+  const withOption = (last: string) => ['Glucose is made', 'Oxygen is released', 'Water is absorbed', last];
+
+  it.each([
+    'All of the above',
+    'None of the above',
+    'all of the above.',
+    'All of these',
+    'None of these',
+    'All of the choices',
+    'Both of the above',
+    'Neither of the above',
+    'All the above',
+  ])('treats %j as fixed', (option) => {
+    expect(classifyMcqOptions(withOption(option))).toBe('fixed');
+  });
+
+  it.each([
+    'Both A and B',
+    'A and C only',
+    'Options B and D',
+    'Choices A, B, and C',
+    'Either A or B',
+    'a and d',
+    'Option C',
+    // Documented choice: a letter list inside a longer sentence still refers to options.
+    'Statement A and B are both true',
+  ])('treats letter reference %j as fixed', (option) => {
+    expect(classifyMcqOptions(withOption(option))).toBe('fixed');
+  });
+
+  it.each([
+    'Alpha and Beta',
+    'Data and Beta',
+    'Kite and Trapezoid',
+    'A square and a rhombus',
+    'Above sea level',
+    'All plants make food',
+  ])('does not treat %j as positional', (option) => {
+    expect(classifyMcqOptions(withOption(option))).toBe('free');
+  });
+
+  it('keeps fixed items in place and balances free items around them', () => {
+    const fixed = (correctAnswer: number): McqBalanceable => ({
+      options: ['Glucose is made', 'Oxygen is released', 'Water is absorbed', 'All of the above'],
+      correctAnswer,
+      answer: ['Glucose is made', 'Oxygen is released', 'Water is absorbed', 'All of the above'][correctAnswer],
+    });
+    const letterRef = (): McqBalanceable => ({
+      options: ['Sides are equal', 'Diagonals bisect', 'Both A and B', 'Neither A nor B'],
+      correctAnswer: 2,
+      answer: 'Both A and B',
+    });
+    const free = (i: number): McqBalanceable => ({
+      options: [`Wrong A ${i}`, `Right ${i}`, `Wrong C ${i}`, `Wrong D ${i}`],
+      correctAnswer: 1,
+      answer: `Right ${i}`,
+    });
+    const questions = [fixed(3), free(1), letterRef(), free(3), fixed(3), free(5), free(6), free(7)];
+
+    const result = balanceMultipleChoiceAnswers(questions, 'Multiple Choice');
+
+    for (const i of [0, 2, 4]) expect(result[i]).toEqual(questions[i]);
+    const counts = [0, 0, 0, 0];
+    result.forEach(q => counts[q.correctAnswer!]++);
+    // Fixed D, C, D are counted first; the five free items fill in B, A, A, C, B.
+    expect(counts).toEqual([2, 2, 2, 2]);
+    for (const i of [1, 3, 5, 6, 7]) {
+      expect(result[i].options![result[i].correctAnswer!]).toBe(`Right ${i}`);
+      expect(result[i].answer).toBe(`Right ${i}`);
+      expect(result[i].correctAnswer).not.toBe(3);
+    }
+  });
+});
+

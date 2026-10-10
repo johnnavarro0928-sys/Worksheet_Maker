@@ -364,11 +364,12 @@ STRICT ALIGNMENT & FORMATTING RULES:
 4. For Multiple Choice, begin every question with a one-sentence stem that sets up what is being asked: use a short real-life situation where it fits the competency, but do not force a scenario onto pure recall items. The stem and the question must be directly relevant to each other. Keep the stem concise; for Easy and Average items (struggling to average learners) it must not be wordy.
 5. Order Multiple Choice options: if all four choices are numbers or measurements, list them in ascending order and use the same unit in every choice; if all four are single words, list them in alphabetical order; if they are phrases or sentences, make all four approximately the same length.
 6. No choice may be the only one that is clearly longer or clearly shorter than the others.
-7. For Multiple Choice, distribute correct-answer positions as evenly as reasonably possible across A-D, but never at the cost of the ordering rules above; the system balances the remaining items.
-8. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
-9. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
-10. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.
-11. For Multiple Choice options, do NOT include option letters or labels inside the option text (such as 'A.', 'B)', 'Option C:', or 'D -'). Return ONLY the clean answer choice text.`;
+7. For Multiple Choice, use "All of the above" and "None of the above" sparingly and always as the last option; options must not refer to other options by letter (such as "Both A and B").
+8. For Multiple Choice, distribute correct-answer positions as evenly as reasonably possible across A-D, but never at the cost of the ordering rules above; the system balances the remaining items.
+9. For mathematical exponents, powers, or chemical formulas, ALWAYS use standard Unicode superscripts and subscripts (e.g. x², y³, 10⁵, H₂O, CO₂, H₂SO₄, a² + b² = c²).
+10. Do NOT use LaTeX ($ or $$) or HTML tags (<sup>/<sub>). Use clean Unicode text only so formulas render natively in Word and browser previews.
+11. Do NOT include leading question numbers, letters, or prefixes (such as '1.', 'Q1:', or '1)'). Return ONLY the clean question text.
+12. For Multiple Choice options, do NOT include option letters or labels inside the option text (such as 'A.', 'B)', 'Option C:', or 'D -'). Return ONLY the clean answer choice text.`;
 
   const config = resolveWorksheetMakerAiProviderConfig();
   let object: GeneratedQuestionsObject | undefined;

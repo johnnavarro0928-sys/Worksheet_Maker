@@ -11,6 +11,10 @@
  *   existing section questions and by ordered items count first, then each free
  *   item goes to the least-used letter. Ties follow the balanced pattern below,
  *   avoiding three identical letters in a row where that costs no balance.
+ * - "fixed": any option is "All/None of the above" (or a close variant) or
+ *   refers to other options by letter ("Both A and B", "Option C"). These are
+ *   kept in place and counted like ordered items, so moving options never
+ *   breaks a last-slot or by-letter reference.
  *
  * Without existing questions or ordered items this reproduces the fixed pattern.
  * Non-MCQ types and malformed items pass through unchanged.
@@ -52,11 +56,25 @@ function parseNumericOption(option: string): number | null {
   return negative ? -value : value;
 }
 
+// "All of the above", "None of these", "Both of the above", "All the choices"...
+const ALL_OR_NONE_OPTION = /^(?:all|none|both|neither)\s+(?:of\s+)?(?:the\s+)?(?:above|these|those|choices|options|answers)\b/i;
+// A-D only as standalone tokens, so "Alpha and Beta" or "Data" never match.
+const LETTER = '(?<![\\p{L}\\p{N}])[a-d](?![\\p{L}\\p{N}])';
+const LETTER_LIST = new RegExp(`${LETTER}(?:\\s*,\\s*${LETTER})*\\s*,?\\s*(?:and|or|nor|&)\\s+${LETTER}`, 'iu');
+const LETTER_KEYWORD = new RegExp(`\\b(?:options?|choices?|letters?)\\s+${LETTER}`, 'iu');
+
+function isPositionalOption(option: string): boolean {
+  const text = option.trim();
+  return ALL_OR_NONE_OPTION.test(text) || LETTER_LIST.test(text) || LETTER_KEYWORD.test(text);
+}
+
 function isStrictlyAscending<T>(values: T[], lessThan: (a: T, b: T) => boolean): boolean {
   return values.every((value, i) => i === 0 || lessThan(values[i - 1], value));
 }
 
-export function classifyMcqOptions(options: string[]): 'ordered' | 'free' {
+export function classifyMcqOptions(options: string[]): 'ordered' | 'fixed' | 'free' {
+  if (options.some(isPositionalOption)) return 'fixed';
+
   const numbers = options.map(parseNumericOption);
   if (numbers.every((value): value is number => value !== null)) {
     return isStrictlyAscending(numbers, (a, b) => a < b) ? 'ordered' : 'free';
@@ -129,7 +147,7 @@ export function balanceMultipleChoiceAnswers<T extends McqBalanceable>(
   // Letters in section order; unassigned free items stay null until placed.
   const letters: Array<number | null> = [
     ...existingQuestions.map(getCorrectLetter),
-    ...questions.map((question, i) => (kinds[i] === 'ordered' ? getCorrectLetter(question) : null)),
+    ...questions.map((question, i) => (kinds[i] === 'ordered' || kinds[i] === 'fixed' ? getCorrectLetter(question) : null)),
   ];
   const counts = [0, 0, 0, 0];
   for (const letter of letters) if (letter !== null) counts[letter] += 1;
