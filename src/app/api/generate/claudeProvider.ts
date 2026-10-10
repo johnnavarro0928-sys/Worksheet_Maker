@@ -7,7 +7,7 @@ import type { z } from 'zod';
 // the existing dual or legacy providers.
 
 export const WORKSHEET_AI_TOTAL_BUDGET_MS = 52000;
-const FALLBACK_RESERVE_MS = 20000;
+const LEGACY_FALLBACK_RESERVE_MS = 20000;
 const MIN_ATTEMPT_TIMEOUT_MS = 5000;
 const MAX_ATTEMPTS = 2;
 const MAX_TOKENS = 16000;
@@ -55,7 +55,8 @@ type AttemptResult<T> =
   | { kind: 'timeout' }
   | { kind: 'network' }
   | { kind: 'retryable_http'; status: number }
-  | { kind: 'terminal_http'; status: number };
+  | { kind: 'terminal_http'; status: number }
+  | { kind: 'budget_skipped' };
 
 export function resolveWorksheetClaudeConfig(env: NodeJS.ProcessEnv = process.env): WorksheetClaudeConfig | null {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
@@ -130,15 +131,25 @@ function logAttempt<T>(attempt: number, durationMs: number, result: AttemptResul
   });
 }
 
-function getAttemptTimeoutMs(config: WorksheetClaudeConfig, startedAt: number, now: number): number {
-  const remainingMs = startedAt + WORKSHEET_AI_TOTAL_BUDGET_MS - now;
-  return Math.min(config.timeoutMs, remainingMs - FALLBACK_RESERVE_MS);
+export interface WorksheetClaudeBudget {
+  startedAt: number;
+  // Shared budget for Claude plus the fallback (dual uses its own total).
+  totalBudgetMs?: number;
+  // Time the fallback provider needs to start; Claude never eats into it.
+  fallbackReserveMs?: number;
+}
+
+function getAttemptTimeoutMs(config: WorksheetClaudeConfig, budget: WorksheetClaudeBudget, now: number): number {
+  const totalBudgetMs = budget.totalBudgetMs ?? WORKSHEET_AI_TOTAL_BUDGET_MS;
+  const fallbackReserveMs = budget.fallbackReserveMs ?? LEGACY_FALLBACK_RESERVE_MS;
+  const remainingMs = budget.startedAt + totalBudgetMs - now;
+  return Math.min(config.timeoutMs, remainingMs - fallbackReserveMs);
 }
 
 export async function requestWorksheetClaude<T>(
   prompt: string,
   schema: z.ZodType<T>,
-  options: { startedAt: number },
+  budget: WorksheetClaudeBudget,
   dependencies: WorksheetClaudeDependencies = {},
 ): Promise<T | undefined> {
   const config = resolveWorksheetClaudeConfig();
@@ -161,8 +172,11 @@ export async function requestWorksheetClaude<T>(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const attemptStartedAt = now();
-    const timeoutMs = getAttemptTimeoutMs(config, options.startedAt, attemptStartedAt);
-    if (timeoutMs < MIN_ATTEMPT_TIMEOUT_MS) return undefined;
+    const timeoutMs = getAttemptTimeoutMs(config, budget, attemptStartedAt);
+    if (timeoutMs < MIN_ATTEMPT_TIMEOUT_MS) {
+      logAttempt(attempt, 0, { kind: 'budget_skipped' });
+      return undefined;
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorksheetMakerAiProviderConfig, WorksheetAiProviderProfile } from './aiProviderConfig';
 import {
   WorksheetAiProviderError,
+  getDualFallbackRequirementMs,
   requestWorksheetAiProvider,
 } from './aiProvider';
 
@@ -481,3 +482,24 @@ describe('requestWorksheetAiProvider', () => {
     expect(logs).not.toContain('private upstream response sentinel');
   });
 });
+
+describe('getDualFallbackRequirementMs', () => {
+  it('equals the window requestWorksheetAiProvider demands before its first attempt', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const config = dualConfig({ primary: { timeoutMs: 10000 }, secondary: { timeoutMs: 14000 } });
+    const requirement = getDualFallbackRequirementMs(config);
+    expect(requirement).toBe(10000 + 14000 + 5500);
+
+    const now = 100000;
+    const fits = vi.fn<typeof globalThis.fetch>().mockResolvedValue(completion({ questions: [] }));
+    await requestWorksheetAiProvider(prompt, config, { fetch: fits, now: () => now, startedAt: now - (config.totalTimeoutMs - requirement) });
+    expect(fits).toHaveBeenCalledTimes(1);
+
+    const tooLate = vi.fn<typeof globalThis.fetch>();
+    await expect(requestWorksheetAiProvider(prompt, config, { fetch: tooLate, now: () => now, startedAt: now - (config.totalTimeoutMs - requirement) - 1 }))
+      .rejects.toMatchObject({ code: 'AI_PROVIDER_BUDGET_EXCEEDED' });
+    expect(tooLate).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+});
+

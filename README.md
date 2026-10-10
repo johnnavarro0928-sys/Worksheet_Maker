@@ -30,7 +30,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 - `ANTHROPIC_API_KEY`: when set, Claude generates worksheet questions first. When unset or empty, Claude is skipped and generation runs exactly as before.
 - `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`), `ANTHROPIC_EFFORT` (`low`|`medium`|`high`|`xhigh`|`max`, default `low`), `ANTHROPIC_TIMEOUT_MS` (default `25000`, clamped to 5000-35000). Invalid values fall back to the defaults.
-- Fallback order: Claude (at most 2 attempts) → the existing dual-mode providers (`WORKSHEET_MAKER_AI_MODE=dual`) or the legacy provider chain. Claude keeps 20 seconds of the shared 52-second budget free for the fallback.
+- Fallback order: Claude (at most 2 attempts) → the existing dual-mode providers (`WORKSHEET_MAKER_AI_MODE=dual`) or the legacy provider chain. Claude never uses the time the fallback needs: in dual mode that is both provider timeouts plus 5.5s (measured against `WORKSHEET_MAKER_AI_TOTAL_TIMEOUT_MS`), in legacy mode 20s of the 52s budget. If less than 5s would be left for Claude, it is skipped (`budget_skipped` in the logs). With dual timeouts of 26s + 20s nothing is left, so Claude only runs once those are lowered (for example 10s + 14s).
 
 ## Learn More
 
