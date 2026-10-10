@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit3, Eye, Library, Save, Printer, FileText, Download, PencilRuler, Plus, BookOpen, Loader2, ArrowUp, ArrowDown, Trash2, CheckCircle2, Bookmark } from "lucide-react";
+import { Library, Save, Download, PencilRuler, Plus, BookOpen, Loader2, ArrowUp, ArrowDown, Trash2, CheckCircle2, Bookmark } from "lucide-react";
 import { generateDocx } from "../utils/exportDocs";
 import { useState, useEffect } from "react";
 import { Question, Section, WorksheetData } from "../types";
@@ -57,6 +57,7 @@ export default function Home() {
 
   const [activeSectionId, setActiveSectionId] = useState<string>("sec-1");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
   const [library, setLibrary] = useState<SavedWorksheet[]>([]);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -196,7 +197,15 @@ export default function Home() {
       ...quizData,
       sections: sections
     };
-    await generateDocx(fullWorksheet, includeAnswerKey);
+    setIsExporting(true);
+    try {
+      await generateDocx(fullWorksheet, includeAnswerKey);
+    } catch {
+      console.error('[worksheet-export] DOCX export failed');
+      alert("Failed to export the Word document. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleSave = () => {
@@ -486,12 +495,6 @@ export default function Home() {
         {/* 3D Neumorphic Topbar */}
         <header className="topbar neu-flat">
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="neu-button-solid bg-ios-gray">
-              <Edit3 size={16} /> Edit
-            </button>
-            <button className="neu-button-solid bg-ios-green">
-              <Eye size={16} /> Preview
-            </button>
             <button className="neu-button-solid bg-ios-gray" onClick={() => setIsLibraryOpen(true)}>
               <Library size={16} /> Library
             </button>
@@ -500,18 +503,17 @@ export default function Home() {
             <button className="neu-button-solid bg-ios-orange" onClick={handleSave}>
               <Save size={16} /> Save
             </button>
-            <button className="neu-button-solid bg-ios-gray">
-              <Printer size={16} /> Print
-            </button>
-            <button className="neu-button-solid bg-ios-red">
-              <FileText size={16} /> PDF
-            </button>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={includeAnswerKey} onChange={(e) => setIncludeAnswerKey(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
               Include Answer Key
             </label>
-            <button className="neu-button-solid bg-ios-blue" onClick={handleExportDocx}>
-              <Download size={16} /> DOCX
+            <button
+              className="neu-button-solid bg-ios-blue"
+              style={{ opacity: isExporting ? 0.7 : 1 }}
+              onClick={handleExportDocx}
+              disabled={isExporting}
+            >
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} DOCX
             </button>
           </div>
         </header>
