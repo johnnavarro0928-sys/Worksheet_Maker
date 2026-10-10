@@ -1,12 +1,11 @@
+import { stripQuestionNumberPrefix } from './stripQuestionNumberPrefix';
+
 export interface DeduplicatableQuestion {
   text?: string;
 }
 
 function normalizeQuestionText(text?: string): string {
-  let normalized = (text || '').trim();
-  while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(normalized)) {
-    normalized = normalized.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
-  }
+  const normalized = stripQuestionNumberPrefix(text || '');
 
   return normalized
     .normalize('NFKC')
