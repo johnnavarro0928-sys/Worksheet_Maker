@@ -26,6 +26,12 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - When unset, production (`NODE_ENV=production`) defaults to auth **on** for every request, including `localhost`. Outside production, `localhost`/`127.0.0.1` requests skip auth.
 - Running `next start` locally is a production build, so set `APPSTORE_AUTH_ENABLED=false` to use it without a session.
 
+## AI providers (Claude primary, existing providers as fallback)
+
+- `ANTHROPIC_API_KEY`: when set, Claude generates worksheet questions first. When unset or empty, Claude is skipped and generation runs exactly as before.
+- `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`), `ANTHROPIC_EFFORT` (`low`|`medium`|`high`|`xhigh`|`max`, default `low`), `ANTHROPIC_TIMEOUT_MS` (default `25000`, clamped to 5000-35000). Invalid values fall back to the defaults.
+- Fallback order: Claude (at most 2 attempts) → the existing dual-mode providers (`WORKSHEET_MAKER_AI_MODE=dual`) or the legacy provider chain. Claude keeps 20 seconds of the shared 52-second budget free for the fallback.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
