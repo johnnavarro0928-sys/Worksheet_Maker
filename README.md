@@ -20,6 +20,12 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Authentication (`APPSTORE_AUTH_ENABLED`)
+
+- `APPSTORE_AUTH_ENABLED=true|1|yes` forces App Store session auth on; `false|0|no` turns it off.
+- When unset, production (`NODE_ENV=production`) defaults to auth **on** for every request, including `localhost`. Outside production, `localhost`/`127.0.0.1` requests skip auth.
+- Running `next start` locally is a production build, so set `APPSTORE_AUTH_ENABLED=false` to use it without a session.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

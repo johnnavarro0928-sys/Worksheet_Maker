@@ -13,7 +13,6 @@ import { stripQuestionNumberPrefix } from '../../../utils/stripQuestionNumberPre
 import { requestWorksheetAiProvider } from './aiProvider';
 import { resolveWorksheetMakerAiProviderConfig } from './aiProviderConfig';
 
-const DEFAULT_MODEL_TIMEOUT_MS = 20000;
 const MIN_MODEL_TIMEOUT_MS = 5000;
 const MAX_MODEL_TIMEOUT_MS = 35000;
 const DEFAULT_OPENROUTER_MODELS = [
@@ -297,7 +296,7 @@ export async function generateQuizQuestions(
   params: QuizParams,
   options: GenerateQuizQuestionsOptions = {},
 ): Promise<Question[]> {
-  if (params.topic === 'MOCK_TEST') {
+  if (params.topic === 'MOCK_TEST' && process.env.NODE_ENV !== 'production') {
     const hasCorrectAnswer = params.type === 'Multiple Choice' || params.type === 'True or False';
     return Array.from({ length: params.count }).map((_, i) => ({
       id: `mock-${i}`,

@@ -18,6 +18,38 @@ const PROVIDER_SELECTION_REQUEST_FIELDS = new Set([
   'aiauthscheme',
 ]);
 
+const DEFAULT_COUNT = 5;
+const MAX_COUNT = 10;
+const MAX_AVOID_QUESTIONS = 40;
+const TEXT_FIELD_MAX_LENGTHS: Record<string, number> = {
+  topic: 200,
+  subject: 200,
+  grade: 200,
+  type: 200,
+  difficulty: 200,
+  language: 200,
+  outputLanguage: 200,
+  competency: 2000,
+  objective: 2000,
+};
+
+function parseCount(value: unknown): number {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_COUNT;
+  return Math.min(parsed, MAX_COUNT);
+}
+
+function hasInvalidTextField(body: unknown): boolean {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+  const fields = body as Record<string, unknown>;
+
+  return Object.entries(TEXT_FIELD_MAX_LENGTHS).some(([field, maxLength]) => {
+    const value = fields[field];
+    if (value === undefined || value === null) return false;
+    return typeof value !== 'string' || value.length > maxLength;
+  });
+}
+
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const parsed = Number.parseInt(String(value), 10);
@@ -44,6 +76,9 @@ export async function POST(req: Request) {
     if (hasProviderSelectionOverride(body)) {
       return NextResponse.json({ error: 'Provider selection is not allowed.' }, { status: 400 });
     }
+    if (hasInvalidTextField(body)) {
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+    }
     const {
       topic,
       competency,
@@ -68,9 +103,11 @@ export async function POST(req: Request) {
       subject,
       type,
       difficulty,
-      count: parseInt(count) || 5,
+      count: parseCount(count),
       language: language || outputLanguage || 'English',
-      avoidQuestions: Array.isArray(avoidQuestions) ? avoidQuestions : undefined,
+      avoidQuestions: Array.isArray(avoidQuestions)
+        ? avoidQuestions.filter((question): question is string => typeof question === 'string').slice(0, MAX_AVOID_QUESTIONS)
+        : undefined,
       totalCount: parseOptionalNumber(totalCount),
       batchStart: parseOptionalNumber(batchStart),
     }, { startedAt });

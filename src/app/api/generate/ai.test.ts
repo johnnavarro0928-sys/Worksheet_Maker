@@ -63,6 +63,29 @@ describe('generateQuizQuestions', () => {
     expect(questions[0].id).toContain('mock-');
   });
 
+  it('treats MOCK_TEST as an ordinary topic in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: { questions: [{ text: 'Real provider question?', options: ['A', 'B', 'C', 'D'], correctAnswer: 0 }] },
+    });
+
+    try {
+      const questions = await generateQuizQuestions({
+        topic: 'MOCK_TEST', grade: '10', subject: 'Math', difficulty: 'Average', type: 'Multiple Choice', count: 2
+      });
+
+      expect(aiMocks.generateObject).toHaveBeenCalledTimes(1);
+      expect(questions).toHaveLength(1);
+      expect(questions[0].id).not.toContain('mock-');
+      expect(questions[0].text).toBe('Real provider question?');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('balances multiple-choice answer letters across generated questions', async () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.ACTIVE_AI_PROVIDER = 'openai';

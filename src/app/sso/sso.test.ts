@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as generateWorksheet } from "../api/generate/route";
+import { requireExistingSession } from "../api/_lib/sessionAuth";
 
 const sharedSecret = "test-shared-secret";
 const originalEnv = { ...process.env };
@@ -193,5 +194,39 @@ describe("Worksheet Maker App Store SSO", () => {
 
     expect(framePolicy).toContain("frame-ancestors 'self' https://sayuna-ai.com https://www.sayuna-ai.com");
     expect(framePolicy).not.toContain("*");
+  });
+
+  describe("default when APPSTORE_AUTH_ENABLED is unset", () => {
+    const localRequest = () => new Request("http://localhost/api/generate", { method: "POST" });
+
+    beforeEach(() => {
+      delete process.env.APPSTORE_AUTH_ENABLED;
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("requires a session for localhost requests in production", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+
+      const response = await requireExistingSession(localRequest());
+
+      expect(response?.status).toBe(401);
+      expect(await response?.json()).toMatchObject({ error: "no_session" });
+    });
+
+    it("lets APPSTORE_AUTH_ENABLED=false disable auth in production", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      process.env.APPSTORE_AUTH_ENABLED = "false";
+
+      expect(await requireExistingSession(localRequest())).toBeNull();
+    });
+
+    it("keeps the localhost exemption outside production", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+
+      expect(await requireExistingSession(localRequest())).toBeNull();
+    });
   });
 });

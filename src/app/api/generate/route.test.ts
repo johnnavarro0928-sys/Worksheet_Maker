@@ -1,7 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
+import { generateQuizQuestions } from './ai';
+
+// Pass-through spy: the real implementation still runs (MOCK_TEST tests are
+// unchanged), but tests can inspect what the route passed in.
+vi.mock('./ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./ai')>();
+  return { ...actual, generateQuizQuestions: vi.fn(actual.generateQuizQuestions) };
+});
 
 const originalEnv = { ...process.env };
+
+const validBody = {
+  topic: 'MOCK_TEST',
+  grade: 'Grade 7',
+  subject: 'Science',
+  type: 'Multiple Choice',
+  difficulty: 'Average',
+  count: 1,
+};
 
 function request(body: Record<string, unknown>) {
   return new Request('http://localhost/api/generate', {
@@ -20,6 +37,7 @@ function request(body: Record<string, unknown>) {
 describe('/api/generate route', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
+    vi.mocked(generateQuizQuestions).mockClear();
   });
 
   afterEach(() => {
@@ -243,5 +261,62 @@ describe('/api/generate route', () => {
     expect(logs).not.toContain('primary-route-secret');
     expect(logs).not.toContain('secondary-route-secret');
     expect(logs).not.toContain('private provider response body');
+  });
+
+  it.each([
+    [10000, 10],
+    ['abc', 5],
+    [0, 5],
+    [-3, 5],
+    [7, 7],
+  ])('passes count %j to generation as %i', async (count, expected) => {
+    const response = await POST(request({ ...validBody, count }));
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(generateQuizQuestions).mock.calls[0][0].count).toBe(expected);
+  });
+
+  it.each([
+    ['oversize topic', { topic: 'x'.repeat(201) }],
+    ['non-string topic', { topic: 123 }],
+    ['oversize language', { language: 'x'.repeat(201) }],
+    ['oversize outputLanguage', { outputLanguage: 'x'.repeat(201) }],
+    ['oversize competency', { competency: 'x'.repeat(2001) }],
+    ['non-string objective', { objective: ['a'] }],
+  ])('rejects %s without calling generation', async (_label, override) => {
+    const response = await POST(request({ ...validBody, ...override }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid request.' });
+    expect(generateQuizQuestions).not.toHaveBeenCalled();
+  });
+
+  it('accepts text fields at their maximum length', async () => {
+    const response = await POST(request({
+      ...validBody,
+      subject: 'x'.repeat(200),
+      competency: 'x'.repeat(2000),
+      objective: 'x'.repeat(2000),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(generateQuizQuestions).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps provider selection rejection ahead of field validation', async () => {
+    const response = await POST(request({ ...validBody, topic: 'x'.repeat(201), model: 'attacker-model' }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Provider selection is not allowed.' });
+  });
+
+  it('drops non-string avoidQuestions and caps them at 40 items', async () => {
+    const strings = Array.from({ length: 45 }, (_, i) => `Question ${i + 1}?`);
+    const avoidQuestions = [42, ...strings.slice(0, 10), null, { text: 'x' }, ...strings.slice(10)];
+
+    const response = await POST(request({ ...validBody, avoidQuestions }));
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(generateQuizQuestions).mock.calls[0][0].avoidQuestions).toEqual(strings.slice(0, 40));
   });
 });
