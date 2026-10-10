@@ -61,6 +61,8 @@ function isAuthEnabled(request: Request): boolean {
   const configured = getEnvValue("APPSTORE_AUTH_ENABLED")?.trim().toLowerCase();
   if (configured === "false" || configured === "0" || configured === "no") return false;
   if (configured === "true" || configured === "1" || configured === "yes") return true;
+  // Production never trusts the Host header for the localhost exemption.
+  if (getEnvValue("NODE_ENV") === "production") return true;
   return !isLocalRequest(request);
 }
 
