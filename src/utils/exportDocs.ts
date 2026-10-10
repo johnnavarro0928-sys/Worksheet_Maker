@@ -2,6 +2,7 @@ import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, T
 import { saveAs } from "file-saver";
 import { WorksheetData } from "../types";
 import { stripAnswerLabelPrefixes } from "./answerOptionLabels";
+import { stripQuestionNumberPrefix } from "./stripQuestionNumberPrefix";
 import { buildAnswerKey } from "./buildAnswerKey";
 
 // Convert centimeters to pixels (1 cm = 37.79527559 px)
@@ -199,10 +200,7 @@ export const generateDocx = async (quizData: WorksheetData, includeAnswerKey: bo
     );
 
     (sec.questions || []).forEach((q, i) => {
-      let cleanText = (q.text || "").trim();
-      while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
-        cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
-      }
+      const cleanText = stripQuestionNumberPrefix(q.text || "");
 
       const qChildren: TextRun[] = [
         new TextRun({ text: `${i + 1}. ${cleanText}`, bold: true })

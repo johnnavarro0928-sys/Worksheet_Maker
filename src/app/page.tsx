@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Question, Section, WorksheetData } from "../types";
 import { QuestionBatchRequest, QuestionGenerationConfig, generateUniqueQuestionBatches } from "../utils/generateUniqueQuestionBatches";
 import { stripAnswerLabelPrefixes } from "../utils/answerOptionLabels";
+import { stripQuestionNumberPrefix } from "../utils/stripQuestionNumberPrefix";
 import { SavedWorksheet, loadLibrary, saveWorksheet, deleteWorksheet } from "../utils/worksheetLibrary";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
@@ -248,10 +249,7 @@ export default function Home() {
 
       if (allQuestions.length > 0) {
         const cleanedQuestions = allQuestions.map((q: Question) => {
-          let cleanText = (q.text || "").trim();
-          while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
-            cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
-          }
+          const cleanText = stripQuestionNumberPrefix(q.text || "");
           return { ...q, text: cleanText };
         });
 

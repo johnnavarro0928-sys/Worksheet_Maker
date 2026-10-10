@@ -9,6 +9,7 @@ import { Question } from '../../../types';
 import { formatFormula } from '../../../utils/formatFormula';
 import { balanceMultipleChoiceAnswers } from '../../../utils/balanceMcqAnswers';
 import { stripAnswerLabelPrefixes } from '../../../utils/answerOptionLabels';
+import { stripQuestionNumberPrefix } from '../../../utils/stripQuestionNumberPrefix';
 import { requestWorksheetAiProvider } from './aiProvider';
 import { resolveWorksheetMakerAiProviderConfig } from './aiProviderConfig';
 
@@ -431,10 +432,7 @@ STRICT ALIGNMENT & FORMATTING RULES:
   const questions = balanceMultipleChoiceAnswers(generatedQuestions, params.type);
 
   return questions.map((q: GeneratedQuestion, i: number) => {
-    let cleanText = (q.text || "").trim();
-    while (/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i.test(cleanText)) {
-      cleanText = cleanText.replace(/^\s*(Q?\d+[\.\)\:]|\d+)\s*/i, '').trim();
-    }
+    const cleanText = stripQuestionNumberPrefix(q.text || "");
     return {
       id: `q-${Date.now()}-${i}`,
       type: params.type,

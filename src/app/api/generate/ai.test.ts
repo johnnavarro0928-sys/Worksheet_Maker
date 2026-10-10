@@ -172,6 +172,30 @@ describe('generateQuizQuestions', () => {
     ]);
   });
 
+  it('keeps a leading number that is part of the question text', async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.ACTIVE_AI_PROVIDER = 'openai';
+    process.env.ACTIVE_AI_MODEL = 'gpt-4o';
+    aiMocks.generateObject.mockResolvedValue({
+      object: {
+        questions: [
+          { text: '1. 25 students took the test. How many passed?', answer: '20' },
+        ],
+      },
+    });
+
+    const questions = await generateQuizQuestions({
+      topic: 'Statistics',
+      grade: 'Grade 6',
+      subject: 'Math',
+      difficulty: 'Average',
+      type: 'Short Answer',
+      count: 1,
+    });
+
+    expect(questions[0].text).toBe('25 students took the test. How many passed?');
+  });
+
   it('defaults to Alibaba Qwen provider when DASHSCOPE_API_KEY is set', async () => {
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
